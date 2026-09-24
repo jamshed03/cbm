@@ -1,0 +1,8 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+    <div>
+        <f:render partial="Cbm/Helper/Label" arguments="{label: label}" />
+        <f:if condition="{record.{field}}">
+            <span><f:link.typolink parameter="{record.{field}}">Link</f:link.typolink></span>
+        </f:if>
+    </div>
+</html>

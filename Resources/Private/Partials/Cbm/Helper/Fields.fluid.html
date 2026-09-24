@@ -1,0 +1,6 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+    <f:comment>Renders fields of a (related) record: each entry of {fields} names the field type partial, the field and its label.</f:comment>
+    <f:for each="{fields}" as="config">
+        <f:render partial="Cbm/{config.type}" arguments="{record: record, field: config.field, label: config.label, fields: config.fields, multiple: config.multiple}" />
+    </f:for>
+</html>

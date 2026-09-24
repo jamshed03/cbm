@@ -42,10 +42,6 @@ final class MigrateLabelsCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $contentBlock = $input->getArgument('content-block');
         $extension = $input->getOption('extension');
-        if (($contentBlock === null) === ($extension === null)) {
-            $io->error('Pass either a Content Block name or --extension.');
-            return Command::INVALID;
-        }
         $prefer = Prefer::tryFrom((string)$input->getOption('prefer'));
         if ($prefer === null) {
             $io->error('--prefer must be "xlf" or "yaml".');

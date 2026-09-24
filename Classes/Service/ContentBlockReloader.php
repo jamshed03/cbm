@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace AskoEducation\Cbm\Service\LabelMigration;
+namespace AskoEducation\Cbm\Service;
 
 use TYPO3\CMS\ContentBlocks\Loader\ContentBlockLoader;
 use TYPO3\CMS\ContentBlocks\Loader\LoadedContentBlock;
@@ -16,7 +16,34 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 final class ContentBlockReloader extends ContentBlockLoader
 {
     /**
-     * Like loadUncached(), but without publishing assets and processing icons – labels need neither.
+     * Picks either the Content Block named $contentBlockName or all Content Blocks of $extension.
+     *
+     * @return list<LoadedContentBlock>
+     */
+    public function select(ContentBlockRegistry $registry, ?string $contentBlockName, ?string $extension): array
+    {
+        if (($contentBlockName === null) === ($extension === null)) {
+            throw new \InvalidArgumentException('Select either a Content Block name or an extension.', 1758700005);
+        }
+        if ($contentBlockName !== null) {
+            if (!$registry->hasContentBlock($contentBlockName)) {
+                throw new \InvalidArgumentException('Content Block "' . $contentBlockName . '" does not exist.', 1758700003);
+            }
+            return [$registry->getContentBlock($contentBlockName)];
+        }
+        $contentBlocks = array_values(array_filter(
+            $registry->getAll(),
+            static fn(LoadedContentBlock $contentBlock): bool => $contentBlock->getHostExtension() === $extension,
+        ));
+        if ($contentBlocks === []) {
+            throw new \InvalidArgumentException('Extension "' . $extension . '" contains no Content Blocks.', 1758700004);
+        }
+        return $contentBlocks;
+    }
+
+    /**
+     * A copy of ContentBlockLoader::loadUncached() without publishing assets and processing icons,
+     * which cbm does not need. Keep it in sync with loadUncached() when updating Content Blocks.
      */
     public function loadRegistry(): ContentBlockRegistry
     {

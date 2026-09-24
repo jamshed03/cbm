@@ -1,0 +1,21 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+    <f:comment>{fields} describes which fields of each record to show, see Helper/Fields. {multiple} is 0 for relationship oneToOne and manyToOne.</f:comment>
+    <div>
+        <f:render partial="Cbm/Helper/Label" arguments="{label: label}" />
+        <f:if condition="{multiple}">
+            <f:then>
+                <ul>
+                    <f:for each="{record.{field}}" as="item">
+                        <li><f:render partial="Cbm/Helper/Fields" arguments="{record: item, fields: fields}" /></li>
+                    </f:for>
+                </ul>
+            </f:then>
+            <f:else>
+                <f:variable name="related" value="{record.{field}}" />
+                <f:if condition="{related}">
+                    <f:render partial="Cbm/Helper/Fields" arguments="{record: related, fields: fields}" />
+                </f:if>
+            </f:else>
+        </f:if>
+    </div>
+</html>

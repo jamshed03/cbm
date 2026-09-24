@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AskoEducation\Cbm\Service\LabelMigration;
 
+use AskoEducation\Cbm\Service\ContentBlockReloader;
 use Symfony\Component\Translation\MessageCatalogue;
 use Symfony\Component\Yaml\Yaml;
 use TYPO3\CMS\ContentBlocks\Definition\Factory\ContentBlockCompiler;
@@ -28,7 +29,7 @@ final readonly class LabelMigrationService
     private const MARKER = '__cbm_label_%d__';
 
     public function __construct(
-        private ContentBlockReloader $contentBlockLoader,
+        private ContentBlockReloader $contentBlockReloader,
         private ContentBlockCompiler $contentBlockCompiler,
         private FieldTypeRegistry $fieldTypeRegistry,
         private SimpleTcaSchemaFactory $simpleTcaSchemaFactory,
@@ -44,8 +45,8 @@ final readonly class LabelMigrationService
      */
     public function plan(?string $contentBlockName, ?string $extension, MigrationOptions $options): array
     {
-        $registry = $this->contentBlockLoader->loadRegistry();
-        $contentBlocks = $this->selectContentBlocks($registry, $contentBlockName, $extension);
+        $registry = $this->contentBlockReloader->loadRegistry();
+        $contentBlocks = $this->contentBlockReloader->select($registry, $contentBlockName, $extension);
         $automaticLanguageKeys = $this->compile($registry);
         return array_map(
             fn(LoadedContentBlock $contentBlock): MigrationPlan => $this->planContentBlock($contentBlock, $registry, $automaticLanguageKeys, $options),
@@ -63,27 +64,6 @@ final readonly class LabelMigrationService
         if ($plan->newYaml !== null) {
             GeneralUtility::writeFile($plan->contentBlockPath . '/' . ContentBlockPathUtility::getContentBlockDefinitionFileName(), $plan->newYaml);
         }
-    }
-
-    /**
-     * @return list<LoadedContentBlock>
-     */
-    private function selectContentBlocks(ContentBlockRegistry $registry, ?string $contentBlockName, ?string $extension): array
-    {
-        if ($contentBlockName !== null) {
-            if (!$registry->hasContentBlock($contentBlockName)) {
-                throw new \InvalidArgumentException('Content Block "' . $contentBlockName . '" does not exist.', 1758700003);
-            }
-            return [$registry->getContentBlock($contentBlockName)];
-        }
-        $contentBlocks = array_values(array_filter(
-            $registry->getAll(),
-            static fn(LoadedContentBlock $contentBlock): bool => $contentBlock->getHostExtension() === $extension,
-        ));
-        if ($contentBlocks === []) {
-            throw new \InvalidArgumentException('Extension "' . $extension . '" contains no Content Blocks.', 1758700004);
-        }
-        return $contentBlocks;
     }
 
     private function planContentBlock(
@@ -181,7 +161,7 @@ final readonly class LabelMigrationService
             $labelLinesByMarker[$marker] = $labelLine;
         }
         $markedYaml = Yaml::parse($this->stripper->replaceValues($yaml, $labelLines, $markers));
-        $marked = $this->contentBlockLoader->reload($contentBlock, $markedYaml);
+        $marked = $this->contentBlockReloader->reload($contentBlock, $markedYaml);
 
         // Only literal labels reach the automatic sources; LLL references are skipped by Content Blocks.
         $values = [];
@@ -217,7 +197,7 @@ final readonly class LabelMigrationService
             if ($this->stripper->withoutLabels(Yaml::parse($oldYaml)) !== $this->stripper->withoutLabels($newRawYaml)) {
                 return 'Stripping labels would change more than labels in config.yaml.';
             }
-            $reloaded = $this->contentBlockLoader->reload($contentBlock, $newRawYaml);
+            $reloaded = $this->contentBlockReloader->reload($contentBlock, $newRawYaml);
             $regeneratedXlf = $this->generateXlf($reloaded, $this->compile($this->registryWith($registry, $reloaded)), $newLabels, $date);
         } catch (\Throwable $e) {
             return 'Stripped config.yaml could not be compiled: ' . $e->getMessage();

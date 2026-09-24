@@ -1,0 +1,2 @@
+# Partials used by backend previews generated with cbm:preview:generate
+tx_content_blocks.view.partialRootPaths.100 = EXT:cbm/Resources/Private/Partials/

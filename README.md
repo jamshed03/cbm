@@ -30,3 +30,39 @@ Options:
   (default `xlf`, which is what Content Blocks shows in the backend anyway)
 
 Flow-style YAML (`{ label: ..., value: ... }`) is not stripped.
+
+## Generate backend previews
+
+```bash
+vendor/bin/typo3 cbm:preview:generate -e my_extension --dry-run -v   # show what would be generated
+vendor/bin/typo3 cbm:preview:generate -e my_extension                # all Content Blocks of an extension
+vendor/bin/typo3 cbm:preview:generate vendor/name --force            # also overwrite a hand-written preview
+```
+
+The template is built on Content Blocks' own `HtmlTemplateCodeGenerator` (same wrapper, header and footer as
+`content-blocks:generate:backend-preview`), but its "Content" section calls one partial per field:
+
+```html
+<f:render partial="Cbm/Text" arguments="{record: data, field: 'portfolio_about_kicker'}"/>
+<f:render partial="Cbm/Collection" arguments="{record: data, field: 'stats', fields: {0: {type: 'Text', field: 'number'}}, label: 'LLL:…:stats.label'}"/>
+```
+
+There is one partial per Content Blocks field type, named like the type, in `Resources/Private/Partials/Cbm/`;
+a field type gets a partial call exactly when such a file exists. `Helper/` holds the shared pieces (the field
+label, the fields of related records). Select and Radio fields show their item labels, resolved at render time by
+`{cbm:itemLabels()}`, a thin wrapper around core's `SchemaLabelResolver`. Password, Pass and ImageManipulation
+fields are never shown; field types without a partial only get a comment. The partials are registered for Content
+Blocks previews in `Configuration/page.tsconfig` (`tx_content_blocks.view.partialRootPaths.100`). Changing a
+partial changes every generated preview, no regeneration needed. To override one in a project, register a partial
+root path with a higher key.
+
+Relations and Collections keep Content Blocks' `PageLayout/Grid` only where it works (related records with a preview
+of their own, e.g. tt_content). Content Blocks' generator uses it everywhere, which breaks the page module for
+relations to tables without a preview renderer (e.g. pages) and for Collections (their records are rendered with the
+parent's preview).
+
+On top of that, cbm:
+- works on all Content Blocks of an extension at once,
+- only writes previews that are missing or still the empty placeholder
+  ("Preview for Content Block: vendor/name"); hand-written ones are kept unless `--force` is given,
+- skips content types without a backend preview (record types, file types).
