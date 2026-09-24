@@ -1,0 +1,27 @@
+{
+    "name": "asko-education/cbm",
+    "type": "typo3-cms-extension",
+    "description": "ContentBlockManager: tooling around friendsoftypo3/content-blocks (label migration, backend previews, backend module)",
+    "license": [
+        "GPL-2.0-or-later"
+    ],
+    "keywords": [
+        "TYPO3 CMS",
+        "Content Blocks"
+    ],
+    "require": {
+        "php": "^8.2",
+        "typo3/cms-core": "^14.3",
+        "friendsoftypo3/content-blocks": "^2.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "AskoEducation\\Cbm\\": "Classes/"
+        }
+    },
+    "extra": {
+        "typo3/cms": {
+            "extension-key": "cbm"
+        }
+    }
+}
