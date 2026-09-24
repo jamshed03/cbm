@@ -66,3 +66,13 @@ On top of that, cbm:
 - only writes previews that are missing or still the empty placeholder
   ("Preview for Content Block: vendor/name"); hand-written ones are kept unless `--force` is given,
 - skips content types without a backend preview (record types, file types).
+
+## Backend module
+
+**Content > Content Blocks** (admins only) lists all Content Blocks by extension, with how many of their language keys
+are not in `labels.xlf` yet (Content Blocks' compiler and `LanguageFileRegistryFactory`) and the state of the backend
+preview. Per Content Block, "Migrate labels" and "Generate
+preview" show the same plan as `--dry-run` and write it on "Apply".
+
+Files are only written in the Development context, and never for extensions installed into `vendor/` (the next
+`composer install` would overwrite them); otherwise the module is an overview only.

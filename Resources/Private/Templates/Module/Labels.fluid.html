@@ -1,0 +1,81 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+<f:layout name="Module"/>
+
+<f:section name="Content">
+    <p><a href="{f:be.uri(route: 'content_cbm')}">&larr; <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.back"/></a></p>
+    <h1><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.heading" arguments="{0: plan.contentBlock}"/></h1>
+
+    <f:if condition="{plan.error}">
+        <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::ERROR')}" title="{f:translate(key: 'LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.error')}">
+            <p>{plan.error}</p>
+        </f:be.infobox>
+    </f:if>
+    <f:if condition="!{hasChanges} && !{plan.conflicts} && !{plan.error}">
+        <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::OK')}">
+            <p><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.nothing"/></p>
+        </f:be.infobox>
+    </f:if>
+
+    <f:if condition="{plan.conflicts}">
+        <h2><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.conflicts"/></h2>
+        <p>
+            <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.prefer"/>:
+            <a class="btn btn-sm {f:if(condition: '{prefer} == \'xlf\'', then: 'btn-primary', else: 'btn-default')}" href="{f:be.uri(route: 'content_cbm.labels', parameters: {contentBlock: plan.contentBlock, prefer: 'xlf'})}">labels.xlf</a>
+            <a class="btn btn-sm {f:if(condition: '{prefer} == \'yaml\'', then: 'btn-primary', else: 'btn-default')}" href="{f:be.uri(route: 'content_cbm.labels', parameters: {contentBlock: plan.contentBlock, prefer: 'yaml'})}">config.yaml</a>
+        </p>
+        <div class="table-fit">
+            <table class="table table-striped">
+                <thead><tr><th>Key</th><th>config.yaml</th><th>labels.xlf</th><th><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.kept"/></th></tr></thead>
+                <tbody>
+                    <f:for each="{plan.conflicts}" key="key" as="conflict">
+                        <tr><td><code>{key}</code></td><td>{conflict.yaml}</td><td>{conflict.xlf}</td><td><strong>{conflict.kept}</strong></td></tr>
+                    </f:for>
+                </tbody>
+            </table>
+        </div>
+    </f:if>
+
+    <f:if condition="{plan.addedKeys}">
+        <h2><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.added"/></h2>
+        <div class="table-fit">
+            <table class="table table-striped">
+                <tbody>
+                    <f:for each="{plan.addedKeys}" key="key" as="value">
+                        <tr><td><code>{key}</code></td><td>{value}</td></tr>
+                    </f:for>
+                </tbody>
+            </table>
+        </div>
+    </f:if>
+
+    <f:if condition="{removed}">
+        <h2><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.removed"/></h2>
+        <div class="table-fit">
+            <table class="table table-striped">
+                <tbody>
+                    <f:for each="{removed}" as="line">
+                        <tr><td>config.yaml:{line.line}</td><td><code>{line.key}</code></td><td>{line.value}</td></tr>
+                    </f:for>
+                </tbody>
+            </table>
+        </div>
+    </f:if>
+
+    <f:if condition="{skipped}">
+        <h2><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.skipped"/></h2>
+        <ul>
+            <f:for each="{skipped}" as="line">
+                <li>config.yaml:{line.line} <code>{line.key}</code>: {line.value}</li>
+            </f:for>
+        </ul>
+    </f:if>
+
+    <f:if condition="{writable} && {hasChanges}">
+        <form method="post" action="{f:be.uri(route: 'content_cbm.labelsApply')}">
+            <input type="hidden" name="contentBlock" value="{plan.contentBlock}"/>
+            <input type="hidden" name="prefer" value="{prefer}"/>
+            <button type="submit" class="btn btn-primary"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.apply"/></button>
+        </form>
+    </f:if>
+</f:section>
+</html>

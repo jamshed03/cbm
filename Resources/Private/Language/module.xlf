@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+    <file source-language="en" datatype="plaintext" original="module.xlf" product-name="cbm">
+        <header/>
+        <body>
+            <trans-unit id="title">
+                <source>Content Blocks</source>
+            </trans-unit>
+            <trans-unit id="short_description">
+                <source>Manage Content Blocks</source>
+            </trans-unit>
+            <trans-unit id="description">
+                <source>Migrate labels and generate backend previews of Content Blocks.</source>
+            </trans-unit>
+            <trans-unit id="overview.heading">
+                <source>Content Blocks</source>
+            </trans-unit>
+            <trans-unit id="overview.readOnly">
+                <source>Files can only be changed in the Development context. This is an overview only.</source>
+            </trans-unit>
+            <trans-unit id="overview.vendor">
+                <source>Installed from vendor: changes would be lost on the next composer install.</source>
+            </trans-unit>
+            <trans-unit id="column.name">
+                <source>Content Block</source>
+            </trans-unit>
+            <trans-unit id="column.type">
+                <source>Type</source>
+            </trans-unit>
+            <trans-unit id="column.labels">
+                <source>Labels</source>
+            </trans-unit>
+            <trans-unit id="column.preview">
+                <source>Backend preview</source>
+            </trans-unit>
+            <trans-unit id="labels.missing">
+                <source>%d not in labels.xlf</source>
+            </trans-unit>
+            <trans-unit id="labels.migrated">
+                <source>in labels.xlf</source>
+            </trans-unit>
+            <trans-unit id="action.labels">
+                <source>Migrate labels</source>
+            </trans-unit>
+            <trans-unit id="action.preview">
+                <source>Generate preview</source>
+            </trans-unit>
+            <trans-unit id="action.apply">
+                <source>Apply</source>
+            </trans-unit>
+            <trans-unit id="action.overwrite">
+                <source>Overwrite the hand-written preview</source>
+            </trans-unit>
+            <trans-unit id="action.back">
+                <source>Back to overview</source>
+            </trans-unit>
+            <trans-unit id="status.missing">
+                <source>missing</source>
+            </trans-unit>
+            <trans-unit id="status.placeholder">
+                <source>placeholder</source>
+            </trans-unit>
+            <trans-unit id="status.current">
+                <source>up to date</source>
+            </trans-unit>
+            <trans-unit id="status.custom">
+                <source>written by hand</source>
+            </trans-unit>
+            <trans-unit id="status.unsupported">
+                <source>not supported</source>
+            </trans-unit>
+            <trans-unit id="labelsPlan.heading">
+                <source>Migrate labels: %s</source>
+            </trans-unit>
+            <trans-unit id="labelsPlan.nothing">
+                <source>Nothing to do: all labels are in labels.xlf.</source>
+            </trans-unit>
+            <trans-unit id="labelsPlan.added">
+                <source>New in labels.xlf</source>
+            </trans-unit>
+            <trans-unit id="labelsPlan.removed">
+                <source>Removed from config.yaml</source>
+            </trans-unit>
+            <trans-unit id="labelsPlan.conflicts">
+                <source>Different in config.yaml and labels.xlf</source>
+            </trans-unit>
+            <trans-unit id="labelsPlan.kept">
+                <source>kept</source>
+            </trans-unit>
+            <trans-unit id="labelsPlan.prefer">
+                <source>Keep the value from</source>
+            </trans-unit>
+            <trans-unit id="labelsPlan.skipped">
+                <source>Stays in config.yaml (the list item would become empty)</source>
+            </trans-unit>
+            <trans-unit id="labelsPlan.error">
+                <source>config.yaml is left untouched</source>
+            </trans-unit>
+            <trans-unit id="previewPlan.heading">
+                <source>Generate preview: %s</source>
+            </trans-unit>
+            <trans-unit id="previewPlan.current">
+                <source>The preview is up to date.</source>
+            </trans-unit>
+            <trans-unit id="previewPlan.custom">
+                <source>This preview was written by hand and differs from the generated one.</source>
+            </trans-unit>
+            <trans-unit id="previewPlan.unsupported">
+                <source>This content type has no backend preview.</source>
+            </trans-unit>
+            <trans-unit id="message.labelsApplied">
+                <source>Labels of %s migrated.</source>
+            </trans-unit>
+            <trans-unit id="message.previewApplied">
+                <source>Backend preview of %s generated.</source>
+            </trans-unit>
+            <trans-unit id="message.nothingWritten">
+                <source>Nothing was written for %s.</source>
+            </trans-unit>
+            <trans-unit id="message.readOnly">
+                <source>Files of %s cannot be changed here.</source>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

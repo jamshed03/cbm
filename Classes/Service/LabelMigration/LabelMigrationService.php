@@ -12,8 +12,10 @@ use TYPO3\CMS\ContentBlocks\FieldType\FieldTypeRegistry;
 use TYPO3\CMS\ContentBlocks\Generator\LanguageFileGenerator;
 use TYPO3\CMS\ContentBlocks\Loader\LoadedContentBlock;
 use TYPO3\CMS\ContentBlocks\Registry\AutomaticLanguageKeysRegistry;
+use TYPO3\CMS\ContentBlocks\Registry\AutomaticLanguageSource;
 use TYPO3\CMS\ContentBlocks\Registry\ContentBlockRegistry;
 use TYPO3\CMS\ContentBlocks\Registry\LanguageFileRegistry;
+use TYPO3\CMS\ContentBlocks\Registry\LanguageFileRegistryFactory;
 use TYPO3\CMS\ContentBlocks\Schema\SimpleTcaSchemaFactory;
 use TYPO3\CMS\ContentBlocks\Utility\ContentBlockPathUtility;
 use TYPO3\CMS\Core\Localization\Loader\XliffLoader;
@@ -38,6 +40,27 @@ final readonly class LabelMigrationService
         private XliffLoader $xliffLoader,
         private ConfigYamlLabelStripper $stripper,
     ) {
+    }
+
+    /**
+     * Per Content Block, how many of its automatic language keys labels.xlf does not contain yet – determined with
+     * Content Blocks' own compiler (the keys labels.xlf is generated from) and LanguageFileRegistryFactory.
+     *
+     * @return array<string, int> by Content Block name
+     */
+    public function countKeysMissingInXlf(ContentBlockRegistry $registry): array
+    {
+        $automaticLanguageKeys = $this->compile($registry);
+        $languageFileRegistry = (new LanguageFileRegistryFactory($registry, $this->xliffLoader))->create();
+        $missing = [];
+        foreach ($registry->getAll() as $contentBlock) {
+            $missing[$contentBlock->getName()] = count(array_filter(
+                $automaticLanguageKeys->getByContentBlock($contentBlock),
+                static fn(AutomaticLanguageSource $source): bool => $source->value !== ''
+                    && !$languageFileRegistry->isset($contentBlock->getName(), $source->key),
+            ));
+        }
+        return $missing;
     }
 
     /**

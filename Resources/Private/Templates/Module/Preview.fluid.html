@@ -1,0 +1,43 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+<f:layout name="Module"/>
+
+<f:section name="Content">
+    <p><a href="{f:be.uri(route: 'content_cbm')}">&larr; <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.back"/></a></p>
+    <h1><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:previewPlan.heading" arguments="{0: plan.contentBlock}"/></h1>
+    <p><code>{path}</code> · <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:status.{plan.status.value}"/></p>
+
+    <f:switch expression="{plan.status.value}">
+        <f:case value="current">
+            <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::OK')}">
+                <p><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:previewPlan.current"/></p>
+            </f:be.infobox>
+        </f:case>
+        <f:case value="custom">
+            <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::WARNING')}">
+                <p><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:previewPlan.custom"/></p>
+            </f:be.infobox>
+        </f:case>
+        <f:case value="unsupported">
+            <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::INFO')}">
+                <p><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:previewPlan.unsupported"/></p>
+            </f:be.infobox>
+        </f:case>
+    </f:switch>
+
+    <f:if condition="{plan.newContent}">
+        <pre class="border rounded p-3"><code>{plan.newContent}</code></pre>
+        <f:if condition="{writable}">
+            <form method="post" action="{f:be.uri(route: 'content_cbm.previewApply')}">
+                <input type="hidden" name="contentBlock" value="{plan.contentBlock}"/>
+                <f:if condition="{plan.status.value} == 'custom'">
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="force" value="1" id="cbm-force" required/>
+                        <label class="form-check-label" for="cbm-force"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.overwrite"/></label>
+                    </div>
+                </f:if>
+                <button type="submit" class="btn btn-primary"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.apply"/></button>
+            </form>
+        </f:if>
+    </f:if>
+</f:section>
+</html>
