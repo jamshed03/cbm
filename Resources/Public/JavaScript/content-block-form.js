@@ -46,6 +46,7 @@ if (form) {
         }
     })
     contentType.addEventListener('change', toggleContentType)
-    fieldList.querySelectorAll('[data-cbm-field]').forEach(toggleItems)
+    // Fields kept as they are when editing (e.g. Collections) have neither items nor a field type to choose.
+    fieldList.querySelectorAll('[data-cbm-field]:not([data-cbm-preserved])').forEach(toggleItems)
     toggleContentType()
 }

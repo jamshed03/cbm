@@ -4,7 +4,12 @@
 <f:section name="Content">
     <f:asset.module identifier="@asko-education/cbm/content-block-form.js"/>
     <p><a href="{f:be.uri(route: 'content_cbm')}">&larr; <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.back"/></a></p>
-    <h1><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.heading"/></h1>
+    <h1>
+        <f:if condition="{editing}">
+            <f:then><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:edit.heading" arguments="{0: editing}"/></f:then>
+            <f:else><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.heading"/></f:else>
+        </f:if>
+    </h1>
 
     <f:if condition="!{isDevelopment}">
         <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::INFO')}">
@@ -18,12 +23,27 @@
             </ul>
         </f:be.infobox>
     </f:if>
+    <f:if condition="{warnings}">
+        <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::WARNING')}" title="{f:translate(key: 'LLL:EXT:cbm/Resources/Private/Language/module.xlf:edit.warnings')}">
+            <ul class="mb-0">
+                <f:for each="{warnings}" as="warning"><li>{warning}</li></f:for>
+            </ul>
+        </f:be.infobox>
+    </f:if>
 
-    <form method="post" action="{f:be.uri(route: 'content_cbm.createSubmit')}" data-cbm-create data-cbm-types-with-items="{typesWithItems}">
+    <f:variable name="formAction" value="{f:be.uri(route: 'content_cbm.createSubmit')}"/>
+    <f:if condition="{editing}">
+        <f:variable name="formAction" value="{f:be.uri(route: 'content_cbm.editSubmit')}"/>
+    </f:if>
+
+    <form method="post" action="{formAction}" data-cbm-create data-cbm-types-with-items="{typesWithItems}">
+        <f:if condition="{editing}">
+            <input type="hidden" name="contentBlock" value="{editing}"/>
+        </f:if>
         <div class="row g-3 mb-4">
             <div class="col-md-4">
                 <label class="form-label" for="cbm-content-type"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.contentType"/></label>
-                <select class="form-select" id="cbm-content-type" name="contentType" data-cbm-content-type>
+                <select class="form-select" id="cbm-content-type" name="contentType" data-cbm-content-type {f:if(condition: editing, then: 'disabled')}>
                     <f:for each="{contentTypes}" as="contentType">
                         <option value="{contentType.value}" {f:if(condition: '{new.contentType.value} == {contentType.value}', then: 'selected')}><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.contentType.{contentType.value}"/></option>
                     </f:for>
@@ -31,11 +51,11 @@
             </div>
             <div class="col-md-4">
                 <label class="form-label" for="cbm-vendor"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.vendor"/></label>
-                <input class="form-control" type="text" id="cbm-vendor" name="vendor" value="{new.vendor}" pattern="[a-z0-9]+(-[a-z0-9]+)*" required/>
+                <input class="form-control" type="text" id="cbm-vendor" name="vendor" value="{new.vendor}" pattern="[a-z0-9]+(-[a-z0-9]+)*" required {f:if(condition: editing, then: 'disabled')}/>
             </div>
             <div class="col-md-4">
                 <label class="form-label" for="cbm-name"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.name"/></label>
-                <input class="form-control" type="text" id="cbm-name" name="name" value="{new.name}" pattern="[a-z0-9]+(-[a-z0-9]+)*" required/>
+                <input class="form-control" type="text" id="cbm-name" name="name" value="{new.name}" pattern="[a-z0-9]+(-[a-z0-9]+)*" required {f:if(condition: editing, then: 'disabled')}/>
                 <div class="form-text"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.nameHint"/></div>
             </div>
             <div class="col-md-4">
@@ -44,11 +64,16 @@
             </div>
             <div class="col-md-4">
                 <label class="form-label" for="cbm-extension"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.extension"/></label>
-                <select class="form-select" id="cbm-extension" name="extension">
-                    <f:for each="{extensions}" as="extension">
-                        <option value="{extension}" {f:if(condition: '{new.extension} == {extension}', then: 'selected')}>{extension}</option>
-                    </f:for>
-                </select>
+                <f:if condition="{editing}">
+                    <f:then><input class="form-control" type="text" id="cbm-extension" value="{new.extension}" disabled/></f:then>
+                    <f:else>
+                        <select class="form-select" id="cbm-extension" name="extension">
+                            <f:for each="{extensions}" as="extension">
+                                <option value="{extension}" {f:if(condition: '{new.extension} == {extension}', then: 'selected')}>{extension}</option>
+                            </f:for>
+                        </select>
+                    </f:else>
+                </f:if>
             </div>
             <div class="col-md-4" data-cbm-only="content-element">
                 <label class="form-label" for="cbm-group"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.group"/></label>
@@ -59,7 +84,7 @@
             </div>
             <div class="col-md-4" data-cbm-only="page-type">
                 <label class="form-label" for="cbm-type-name"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.typeName"/></label>
-                <input class="form-control" type="number" min="1" id="cbm-type-name" name="typeName" value="{new.typeName}"/>
+                <input class="form-control" type="number" min="1" id="cbm-type-name" name="typeName" value="{new.typeName}" {f:if(condition: editing, then: 'disabled')}/>
                 <div class="form-text"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.typeNameHint"/></div>
             </div>
             <div class="col-md-8" data-cbm-only="content-element">
@@ -69,7 +94,12 @@
         </div>
 
         <h2><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.fields"/></h2>
-        <p class="text-body-secondary"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.fieldsHint"/></p>
+        <p class="text-body-secondary">
+            <f:if condition="{editing}">
+                <f:then><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:edit.fieldsHint"/></f:then>
+                <f:else><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.fieldsHint"/></f:else>
+            </f:if>
+        </p>
         <div data-cbm-fields>
             <f:for each="{new.fields}" as="field" iteration="iteration">
                 <f:render section="FieldRow" arguments="{index: iteration.index, field: field, fieldTypes: fieldTypes, fieldOptions: fieldOptions}"/>
@@ -85,60 +115,90 @@
         </f:for>
         <p><button type="button" class="btn btn-default" data-cbm-add-field><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.addField"/></button></p>
 
+        <f:if condition="{warnings}">
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" name="confirmed" value="1" id="cbm-confirmed" required/>
+                <label class="form-check-label" for="cbm-confirmed"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:edit.confirm"/></label>
+            </div>
+        </f:if>
         <f:if condition="{isDevelopment}">
-            <button type="submit" class="btn btn-primary"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.submit"/></button>
+            <button type="submit" class="btn btn-primary">
+                <f:if condition="{editing}">
+                    <f:then><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:edit.submit"/></f:then>
+                    <f:else><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.submit"/></f:else>
+                </f:if>
+            </button>
         </f:if>
     </form>
 </f:section>
 
 <f:section name="FieldRow">
-    <div class="card mb-2" data-cbm-field data-cbm-index="{index}">
-        <div class="card-body row g-2 align-items-end">
-            <div class="col-md-2">
-                <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.identifier"/></label>
-                <input class="form-control" type="text" name="fields[{index}][identifier]" value="{field.identifier}" pattern="[a-z][a-z0-9_]*" required/>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.fieldType"/></label>
-                <select class="form-select" name="fields[{index}][type]" data-cbm-type>
-                    <f:for each="{fieldTypes}" as="fieldType">
-                        <option value="{fieldType}" {f:if(condition: '{field.type} == {fieldType}', then: 'selected')}>{fieldType}</option>
-                    </f:for>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.label"/></label>
-                <input class="form-control" type="text" name="fields[{index}][label]" value="{field.label}"/>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.fieldDescription"/></label>
-                <input class="form-control" type="text" name="fields[{index}][description]" value="{field.description}"/>
-            </div>
-            <div class="col-md-1">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="fields[{index}][required]" value="1" id="cbm-required-{index}" {f:if(condition: field.required, then: 'checked')}/>
-                    <label class="form-check-label" for="cbm-required-{index}"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.required"/></label>
+    <f:if condition="{field.preserved}">
+        <f:then>
+            <div class="card mb-2 bg-body-tertiary" data-cbm-field data-cbm-preserved>
+                <div class="card-body d-flex align-items-center gap-3">
+                    <input type="hidden" name="fields[{index}][identifier]" value="{field.identifier}"/>
+                    <input type="hidden" name="fields[{index}][type]" value="{field.type}"/>
+                    <input type="hidden" name="fields[{index}][original]" value="{field.original}"/>
+                    <input type="hidden" name="fields[{index}][preserved]" value="1"/>
+                    <code>{f:if(condition: field.identifier, then: field.identifier, else: field.original)}</code>
+                    <span>{field.type}</span>
+                    <span class="text-body-secondary flex-grow-1"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:edit.preserved"/></span>
+                    <button type="button" class="btn btn-default btn-sm" data-cbm-remove-field><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.removeField"/></button>
                 </div>
             </div>
-            <div class="col-md-1 text-end">
-                <button type="button" class="btn btn-default btn-sm" data-cbm-remove-field><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.removeField"/></button>
-            </div>
-            <div class="col-12" data-cbm-items>
-                <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.items"/></label>
-                <textarea class="form-control font-monospace" rows="3" name="fields[{index}][items]" placeholder="light = Light&#10;dark = Dark">{field.items}</textarea>
-            </div>
-            <details class="col-12">
-                <summary><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.options"/></summary>
-                <div data-cbm-options>
-                    <f:for each="{fieldOptions}" key="optionType" as="options">
-                        <f:if condition="{optionType} == {field.type}">
-                            <f:render section="OptionGroup" arguments="{index: index, options: options, values: field.options}"/>
-                        </f:if>
-                    </f:for>
+        </f:then>
+        <f:else>
+        <div class="card mb-2" data-cbm-field data-cbm-index="{index}">
+            <div class="card-body row g-2 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.identifier"/></label>
+                    <input class="form-control" type="text" name="fields[{index}][identifier]" value="{field.identifier}" pattern="[a-z][a-z0-9_]*" required/>
+                    <input type="hidden" name="fields[{index}][original]" value="{field.original}"/>
                 </div>
-            </details>
+                <div class="col-md-2">
+                    <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.fieldType"/></label>
+                    <select class="form-select" name="fields[{index}][type]" data-cbm-type>
+                        <f:for each="{fieldTypes}" as="fieldType">
+                            <option value="{fieldType}" {f:if(condition: '{field.type} == {fieldType}', then: 'selected')}>{fieldType}</option>
+                        </f:for>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.label"/></label>
+                    <input class="form-control" type="text" name="fields[{index}][label]" value="{field.label}"/>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.fieldDescription"/></label>
+                    <input class="form-control" type="text" name="fields[{index}][description]" value="{field.description}"/>
+                </div>
+                <div class="col-md-1">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="fields[{index}][required]" value="1" id="cbm-required-{index}" {f:if(condition: field.required, then: 'checked')}/>
+                        <label class="form-check-label" for="cbm-required-{index}"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.required"/></label>
+                    </div>
+                </div>
+                <div class="col-md-1 text-end">
+                    <button type="button" class="btn btn-default btn-sm" data-cbm-remove-field><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.removeField"/></button>
+                </div>
+                <div class="col-12" data-cbm-items>
+                    <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.items"/></label>
+                    <textarea class="form-control font-monospace" rows="3" name="fields[{index}][items]" placeholder="light = Light&#10;dark = Dark">{field.items}</textarea>
+                </div>
+                <details class="col-12">
+                    <summary><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.options"/></summary>
+                    <div data-cbm-options>
+                        <f:for each="{fieldOptions}" key="optionType" as="options">
+                            <f:if condition="{optionType} == {field.type}">
+                                <f:render section="OptionGroup" arguments="{index: index, options: options, values: field.options}"/>
+                            </f:if>
+                        </f:for>
+                    </div>
+                </details>
+            </div>
         </div>
-    </div>
+        </f:else>
+    </f:if>
 </f:section>
 
 <f:section name="OptionGroup">

@@ -39,6 +39,16 @@ return [
             'createFinish' => [
                 'target' => ContentBlockModuleController::class . '::createFinishAction',
             ],
+            'edit' => [
+                'target' => ContentBlockModuleController::class . '::editAction',
+            ],
+            'editSubmit' => [
+                'target' => ContentBlockModuleController::class . '::editSubmitAction',
+                'methods' => ['POST'],
+            ],
+            'editFinish' => [
+                'target' => ContentBlockModuleController::class . '::editFinishAction',
+            ],
             'preview' => [
                 'target' => ContentBlockModuleController::class . '::previewAction',
             ],

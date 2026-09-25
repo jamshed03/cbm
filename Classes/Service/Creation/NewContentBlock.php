@@ -13,6 +13,7 @@ final readonly class NewContentBlock
 {
     /**
      * @param list<NewField> $fields
+     * @param bool $confirmed when editing: the warnings about renamed, retyped or removed fields were confirmed
      */
     public function __construct(
         public ContentType $contentType = ContentType::CONTENT_ELEMENT,
@@ -24,6 +25,7 @@ final readonly class NewContentBlock
         public string $typeName = '',
         public string $extension = '',
         public array $fields = [],
+        public bool $confirmed = false,
     ) {
     }
 
@@ -39,6 +41,7 @@ final readonly class NewContentBlock
             typeName: trim((string) ($data['typeName'] ?? '')),
             extension: (string) ($data['extension'] ?? ''),
             fields: array_values(array_map(NewField::fromFormData(...), array_filter((array) ($data['fields'] ?? []), 'is_array'))),
+            confirmed: (bool) ($data['confirmed'] ?? false),
         );
     }
 

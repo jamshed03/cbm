@@ -50,7 +50,12 @@
                                 <td><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:status.{contentBlock.previewStatus}" /></td>
                                 <td class="col-control">
                                     <div class="btn-group">
-                                        <a class="btn btn-default btn-sm" href="{f:be.uri(route: 'content_cbm.labels', parameters: {contentBlock: contentBlock.name})}">
+                                        <f:if condition="{isDevelopment} && {group.writable} && {contentBlock.type} != 'file-type'">
+                                        <a class="btn btn-default btn-sm" href="{f:be.uri(route: 'content_cbm.edit', parameters: {contentBlock: contentBlock.name})}">
+                                            <core:icon identifier="actions-open"/> <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.edit"/>
+                                        </a>
+                                    </f:if>
+                                    <a class="btn btn-default btn-sm" href="{f:be.uri(route: 'content_cbm.labels', parameters: {contentBlock: contentBlock.name})}">
                                             <core:icon identifier="actions-translate" />
                                             <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.labels" />
                                         </a>

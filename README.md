@@ -90,6 +90,13 @@ preview. Per Content Block:
   `content-blocks:create` does (Content Blocks' `ConfigBuilder` and `ContentBlockBuilder`), with its labels only in
   `labels.xlf`. In a second request, once TCA knows the new Content Block, its table or columns are added (only
   those of its table, never changes or drops elsewhere) and the backend preview is generated.
+- **Edit** (Development context only): the create form, filled with the Content Block. Title, description and group,
+  and the fields: identifier, type, label, description, required, items and options. Labels go into `labels.xlf`,
+  the rest into `config.yaml` (written with 4 spaces; comments are not kept). Of each field only the keys the form
+  sets are replaced, all others are kept; fields the form cannot show (Collections, Relations, existing fields, ...)
+  are kept as they are. Renaming, retyping or removing fields has to be confirmed: their database columns and content
+  stay. New columns are added afterwards; the backend preview is regenerated unless it differs from a generated one.
+  Labels still in `config.yaml` have to be migrated first.
 - **Generate preview** shows the same plan as `cbm:preview:generate --dry-run` and writes it on "Apply".
 
 Files are only written in the Development context, and never for extensions installed into `vendor/` (the next

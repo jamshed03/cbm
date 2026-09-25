@@ -8,8 +8,10 @@ use AskoEducation\Cbm\Service\BackendPreview\BackendPreviewService;
 use AskoEducation\Cbm\Service\BackendPreview\PreviewPlan;
 use AskoEducation\Cbm\Service\ContentBlockReloader;
 use AskoEducation\Cbm\Service\Creation\ContentBlockCreator;
+use AskoEducation\Cbm\Service\Creation\FieldDefinitions;
 use AskoEducation\Cbm\Service\Creation\NewContentBlock;
 use AskoEducation\Cbm\Service\Creation\NewField;
+use AskoEducation\Cbm\Service\Editing\ContentBlockEditor;
 use AskoEducation\Cbm\Service\LabelEditor\LabelEditorService;
 use AskoEducation\Cbm\Service\LabelMigration\LabelLine;
 use AskoEducation\Cbm\Service\LabelMigration\LabelMigrationService;
@@ -50,6 +52,8 @@ final readonly class ContentBlockModuleController
         private LabelEditorService $labelEditorService,
         private LanguageFileService $languageFileService,
         private ContentBlockCreator $contentBlockCreator,
+        private ContentBlockEditor $contentBlockEditor,
+        private FieldDefinitions $fieldDefinitions,
         private BackendPreviewService $backendPreviewService,
     ) {
     }
@@ -151,7 +155,7 @@ final readonly class ContentBlockModuleController
     {
         $registry = $this->contentBlockReloader->loadRegistry();
         $extensions = $this->getWritableExtensions();
-        return $this->renderCreateForm($request, $this->contentBlockCreator->suggest($registry, $extensions), [], $registry, $extensions);
+        return $this->renderForm($request, $this->contentBlockCreator->suggest($registry, $extensions), [], $registry, $extensions);
     }
 
     public function createSubmitAction(ServerRequestInterface $request): ResponseInterface
@@ -172,7 +176,7 @@ final readonly class ContentBlockModuleController
                 $errors = [$e->getMessage()];
             }
         }
-        return $this->renderCreateForm($request, $new, $errors, $registry, $extensions);
+        return $this->renderForm($request, $new, $errors, $registry, $extensions);
     }
 
     public function createFinishAction(ServerRequestInterface $request): ResponseInterface
@@ -191,6 +195,76 @@ final readonly class ContentBlockModuleController
             );
         }
         return $this->redirectWithMessage($this->translate('message.created', $contentBlock), ContextualFeedbackSeverity::OK, $contentBlock);
+    }
+
+    public function editAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $contentBlock = (string) ($request->getQueryParams()['contentBlock'] ?? '');
+        if (!$this->isWritableContentBlock($contentBlock)) {
+            return $this->redirectWithMessage($this->translate('message.readOnly', $contentBlock), ContextualFeedbackSeverity::ERROR);
+        }
+        if ($this->contentBlockEditor->isMigrationPending($contentBlock)) {
+            return $this->redirectWithMessage($this->translate('message.migrateFirst', $contentBlock), ContextualFeedbackSeverity::WARNING, $contentBlock);
+        }
+        $registry = $this->contentBlockReloader->loadRegistry();
+        return $this->renderForm($request, $this->contentBlockEditor->load($contentBlock), [], $registry, [], $contentBlock);
+    }
+
+    public function editSubmitAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $body = (array) $request->getParsedBody();
+        $contentBlock = (string) ($body['contentBlock'] ?? '');
+        if (!$this->isWritableContentBlock($contentBlock)) {
+            return $this->redirectWithMessage($this->translate('message.readOnly', $contentBlock), ContextualFeedbackSeverity::ERROR);
+        }
+        // Only what the form may change; name, type and extension stay those of the Content Block.
+        $loaded = $this->contentBlockEditor->load($contentBlock);
+        $submitted = NewContentBlock::fromFormData($body);
+        $edited = new NewContentBlock(
+            contentType: $loaded->contentType,
+            vendor: $loaded->vendor,
+            name: $loaded->name,
+            title: $submitted->title,
+            description: $submitted->description,
+            group: $submitted->group,
+            typeName: $loaded->typeName,
+            extension: $loaded->extension,
+            fields: $submitted->fields,
+            confirmed: $submitted->confirmed,
+        );
+        $registry = $this->contentBlockReloader->loadRegistry();
+        $errors = $this->contentBlockEditor->validate($contentBlock, $edited);
+        $warnings = $errors === [] ? $this->contentBlockEditor->getWarnings($contentBlock, $edited) : [];
+        if ($errors === [] && ($warnings === [] || $edited->confirmed)) {
+            try {
+                $this->contentBlockEditor->save($contentBlock, $edited);
+                // A new request, so that TCA and the database definitions know the changes.
+                return new RedirectResponse((string) $this->uriBuilder->buildUriFromRoute('content_cbm.editFinish', ['contentBlock' => $contentBlock]));
+            } catch (\Throwable $e) {
+                $errors = [$e->getMessage()];
+            }
+        }
+        return $this->renderForm($request, $edited, $errors, $registry, [], $contentBlock, $warnings);
+    }
+
+    public function editFinishAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $contentBlock = (string) ($request->getQueryParams()['contentBlock'] ?? '');
+        if (!$this->isWritableContentBlock($contentBlock)) {
+            return $this->redirectWithMessage($this->translate('message.readOnly', $contentBlock), ContextualFeedbackSeverity::ERROR);
+        }
+        try {
+            $previewUpToDate = $this->contentBlockEditor->finish($contentBlock);
+        } catch (\Throwable $e) {
+            return $this->redirectWithMessage(
+                $this->translate('message.savedWithIssue', $contentBlock) . ' ' . $e->getMessage(),
+                ContextualFeedbackSeverity::WARNING,
+                $contentBlock,
+            );
+        }
+        return $previewUpToDate
+            ? $this->redirectWithMessage($this->translate('message.saved', $contentBlock), ContextualFeedbackSeverity::OK, $contentBlock)
+            : $this->redirectWithMessage($this->translate('message.savedCustomPreview', $contentBlock), ContextualFeedbackSeverity::INFO, $contentBlock);
     }
 
     public function previewAction(ServerRequestInterface $request): ResponseInterface
@@ -221,23 +295,30 @@ final readonly class ContentBlockModuleController
     }
 
     /**
+     * The create form, or with $editing the edit form of that Content Block.
+     *
      * @param list<string> $errors
      * @param list<string> $extensions the writable extensions
+     * @param list<string> $warnings to be confirmed before an edit is saved
      */
-    private function renderCreateForm(
+    private function renderForm(
         ServerRequestInterface $request,
         NewContentBlock $new,
         array $errors,
         ContentBlockRegistry $registry,
         array $extensions,
+        string $editing = '',
+        array $warnings = [],
     ): ResponseInterface {
         return $this->moduleTemplateFactory->create($request)
             ->assignMultiple([
                 'new' => $new,
                 'errors' => $errors,
+                'warnings' => $warnings,
+                'editing' => $editing,
                 'contentTypes' => ContentBlockCreator::CONTENT_TYPES,
-                'fieldTypes' => $this->contentBlockCreator->getFieldTypes(),
-                'fieldOptions' => $this->contentBlockCreator->getFieldOptions(),
+                'fieldTypes' => $this->fieldDefinitions->getFieldTypes(),
+                'fieldOptions' => $this->fieldDefinitions->getFieldOptions(),
                 'typesWithItems' => implode(',', NewField::TYPES_WITH_ITEMS),
                 'groups' => $this->contentBlockCreator->getGroups($registry),
                 'extensions' => $extensions,

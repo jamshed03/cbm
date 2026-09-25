@@ -255,6 +255,39 @@
             <trans-unit id="create.options">
                 <source>Options (from the Content Blocks schema; empty = default)</source>
             </trans-unit>
+            <trans-unit id="action.edit">
+                <source>Edit</source>
+            </trans-unit>
+            <trans-unit id="edit.heading">
+                <source>Edit Content Block: %s</source>
+            </trans-unit>
+            <trans-unit id="edit.fieldsHint">
+                <source>Grey fields can only be changed in config.yaml (e.g. Collections, Relations, existing fields); they are kept as they are. Labels of all fields can be changed in &quot;Labels&quot;.</source>
+            </trans-unit>
+            <trans-unit id="edit.preserved">
+                <source>only editable in config.yaml, kept as it is</source>
+            </trans-unit>
+            <trans-unit id="edit.warnings">
+                <source>Please confirm these changes</source>
+            </trans-unit>
+            <trans-unit id="edit.confirm">
+                <source>I understand what happens to the content of these fields.</source>
+            </trans-unit>
+            <trans-unit id="edit.submit">
+                <source>Save</source>
+            </trans-unit>
+            <trans-unit id="message.migrateFirst">
+                <source>Labels of %s are still in config.yaml. Migrate them first, then the Content Block can be edited.</source>
+            </trans-unit>
+            <trans-unit id="message.saved">
+                <source>%s saved: database updated and backend preview regenerated.</source>
+            </trans-unit>
+            <trans-unit id="message.savedCustomPreview">
+                <source>%s saved and database updated. Its backend preview differs from a generated one and was left as it is; use &quot;Generate preview&quot; to replace it.</source>
+            </trans-unit>
+            <trans-unit id="message.savedWithIssue">
+                <source>%s was saved, but updating the database or the preview failed:</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

@@ -16,6 +16,10 @@ final readonly class NewField
      */
     public const TYPES_WITH_ITEMS = ['Select', 'Radio'];
 
+    /**
+     * @param string $original when editing: the identifier the field has in config.yaml ('' for a new field)
+     * @param bool $preserved when editing: a field the form cannot show (e.g. a Collection), kept as it is
+     */
     public function __construct(
         public string $identifier = '',
         public string $type = '',
@@ -24,6 +28,8 @@ final readonly class NewField
         public bool $required = false,
         public string $items = '',
         public array $options = [],
+        public string $original = '',
+        public bool $preserved = false,
     ) {
     }
 
@@ -37,6 +43,8 @@ final readonly class NewField
             required: (bool) ($data['required'] ?? false),
             items: (string) ($data['items'] ?? ''),
             options: (array) ($data['options'] ?? []),
+            original: trim((string) ($data['original'] ?? '')),
+            preserved: (bool) ($data['preserved'] ?? false),
         );
     }
 

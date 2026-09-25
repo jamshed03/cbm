@@ -6,15 +6,13 @@ namespace AskoEducation\Cbm\Service\Creation;
 
 use AskoEducation\Cbm\Service\BackendPreview\BackendPreviewService;
 use AskoEducation\Cbm\Service\ContentBlockReloader;
+use AskoEducation\Cbm\Service\Database\TableUpdater;
 use AskoEducation\Cbm\Service\LabelMigration\ConfigYamlLabelStripper;
 use Symfony\Component\Yaml\Yaml;
 use TYPO3\CMS\ContentBlocks\Builder\ConfigBuilder;
 use TYPO3\CMS\ContentBlocks\Builder\ContentBlockBuilder;
 use TYPO3\CMS\ContentBlocks\Definition\ContentType\ContentType;
 use TYPO3\CMS\ContentBlocks\Definition\ContentType\ContentTypeIcon;
-use TYPO3\CMS\ContentBlocks\FieldType\FieldTypeRegistry;
-use TYPO3\CMS\ContentBlocks\JsonSchemaValidation\ContentBlockValidator;
-use TYPO3\CMS\ContentBlocks\JsonSchemaValidation\JsonSchemaErrorFormatter;
 use TYPO3\CMS\ContentBlocks\Loader\LoadedContentBlock;
 use TYPO3\CMS\ContentBlocks\Registry\ContentBlockRegistry;
 use TYPO3\CMS\ContentBlocks\Service\PackageResolver;
@@ -22,8 +20,6 @@ use TYPO3\CMS\ContentBlocks\Utility\ContentBlockPathUtility;
 use TYPO3\CMS\ContentBlocks\Validation\ContentBlockNameValidator;
 use TYPO3\CMS\ContentBlocks\Validation\PageTypeNameValidator;
 use TYPO3\CMS\Core\Cache\CacheManager;
-use TYPO3\CMS\Core\Database\Schema\SchemaMigrator;
-use TYPO3\CMS\Core\Database\Schema\SqlReader;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -35,40 +31,16 @@ final readonly class ContentBlockCreator
 {
     public const CONTENT_TYPES = [ContentType::CONTENT_ELEMENT, ContentType::RECORD_TYPE, ContentType::PAGE_TYPE];
 
-    /**
-     * Field types the form offers: those that need no further options beyond label, description, required and items.
-     */
-    private const FIELD_TYPES = [
-        'Text',
-        'Textarea',
-        'Number',
-        'Email',
-        'Link',
-        'DateTime',
-        'Color',
-        'Checkbox',
-        'Select',
-        'Radio',
-        'File',
-        'Category',
-    ];
-
-    private const IDENTIFIER_PATTERN = '/^[a-z][a-z0-9_]*$/';
-
     public function __construct(
         private ConfigBuilder $configBuilder,
         private ContentBlockBuilder $contentBlockBuilder,
         private ContentBlockReloader $contentBlockReloader,
-        private FieldTypeRegistry $fieldTypeRegistry,
         private PackageResolver $packageResolver,
         private CacheManager $cacheManager,
-        private SqlReader $sqlReader,
-        private SchemaMigrator $schemaMigrator,
         private ConfigYamlLabelStripper $configYamlLabelStripper,
         private BackendPreviewService $backendPreviewService,
-        private FieldOptionSchema $fieldOptionSchema,
-        private ContentBlockValidator $contentBlockValidator,
-        private JsonSchemaErrorFormatter $jsonSchemaErrorFormatter,
+        private FieldDefinitions $fieldDefinitions,
+        private TableUpdater $tableUpdater,
     ) {
     }
 
@@ -80,29 +52,6 @@ final readonly class ContentBlockCreator
     public function getExtensions(): array
     {
         return array_map('strval', array_keys($this->packageResolver->getAvailablePackagesForDisplay()));
-    }
-
-    /**
-     * @return list<string>
-     */
-    public function getFieldTypes(): array
-    {
-        return array_values(array_filter(self::FIELD_TYPES, $this->fieldTypeRegistry->has(...)));
-    }
-
-    /**
-     * The options of each offered field type. They are the same for all content types, so they come from the
-     * content element schema; validation uses the schema of the chosen content type.
-     *
-     * @return array<string, list<FieldOption>> by field type
-     */
-    public function getFieldOptions(): array
-    {
-        $options = [];
-        foreach ($this->getFieldTypes() as $fieldType) {
-            $options[$fieldType] = $this->fieldOptionSchema->getOptions(ContentType::CONTENT_ELEMENT, $fieldType);
-        }
-        return $options;
     }
 
     /**
@@ -176,28 +125,13 @@ final readonly class ContentBlockCreator
         }
         // The fields ConfigBuilder starts with do not depend on vendor and name, which may be invalid here.
         $identifiers = array_column($this->buildConfig($new, 'vendor', 'name')['fields'] ?? [], 'identifier');
-        $fieldTypes = $this->getFieldTypes();
-        foreach ($new->fields as $position => $field) {
-            $row = sprintf('Field %d', $position + 1);
-            if (!preg_match(self::IDENTIFIER_PATTERN, $field->identifier)) {
-                $errors[] = $row . ': the identifier must start with a letter and contain only a-z, 0-9 and "_".';
-            } elseif (in_array($field->identifier, $identifiers, true)) {
-                $errors[] = sprintf('%s: the identifier "%s" is used twice.', $row, $field->identifier);
-            }
-            $identifiers[] = $field->identifier;
-            if (!in_array($field->type, $fieldTypes, true)) {
-                $errors[] = $row . ': choose a field type.';
-            }
-            if ($field->needsItems() && $field->parseItems() === []) {
-                $errors[] = $row . ': add at least one item ("value = Label" per line).';
-            }
-        }
+        $errors = [...$errors, ...$this->fieldDefinitions->validateFields($new->fields, $identifiers)];
         if ($errors !== []) {
             return $errors;
         }
         [$yaml, $optionErrors] = $this->buildYaml($new);
         // Options that are no valid YAML are left out of $yaml, so the schema still checks all the others.
-        return [...$optionErrors, ...$this->validateAgainstSchema($new, $yaml)];
+        return [...$optionErrors, ...$this->fieldDefinitions->validateAgainstSchema($this->createLoadedContentBlock($new, $yaml))];
     }
 
     /**
@@ -228,31 +162,9 @@ final readonly class ContentBlockCreator
     public function finish(string $contentBlockName): void
     {
         $contentBlock = $this->contentBlockReloader->loadRegistry()->getContentBlock($contentBlockName);
-        $this->updateTable((string) $contentBlock->getYaml()['table']);
+        $this->tableUpdater->addMissing((string) $contentBlock->getYaml()['table']);
         foreach ($this->backendPreviewService->plan($contentBlockName, null, true) as $plan) {
             $this->backendPreviewService->apply($plan);
-        }
-    }
-
-    /**
-     * Creates the table or adds the missing columns, like extension:setup does for the whole database – limited to
-     * $table and to additions, so that no pending change of another extension is applied on the way.
-     */
-    private function updateTable(string $table): void
-    {
-        $statements = $this->sqlReader->getCreateTableStatementArray($this->sqlReader->getTablesDefinitionString());
-        $suggestions = array_merge_recursive(...array_values($this->schemaMigrator->getUpdateSuggestions($statements)));
-        $selected = [];
-        foreach (['create_table', 'add'] as $action) {
-            foreach ($suggestions[$action] ?? [] as $hash => $statement) {
-                if (preg_match('/^(CREATE|ALTER) TABLE `?' . preg_quote($table, '/') . '`?\s/i', (string) $statement)) {
-                    $selected[$hash] = true;
-                }
-            }
-        }
-        $errors = $this->schemaMigrator->migrate($statements, $selected);
-        if ($errors !== []) {
-            throw new \RuntimeException(implode(' ', $errors), 1758700020);
         }
     }
 
@@ -272,46 +184,10 @@ final readonly class ContentBlockCreator
         }
         $errors = [];
         foreach ($new->fields as $field) {
-            [$options, $optionErrors] = $this->fieldOptionSchema->convert($new->contentType, $field->type, $field->options);
-            foreach ($optionErrors as $optionError) {
-                $errors[] = sprintf('Field "%s": %s', $field->identifier, $optionError);
-            }
-            $yaml['fields'][] = $field->toYaml($options);
+            [$yaml['fields'][], $fieldErrors] = $this->fieldDefinitions->toYaml($new->contentType, $field);
+            $errors = [...$errors, ...$fieldErrors];
         }
         return [$yaml, $errors];
-    }
-
-    /**
-     * Validates the new configuration like content-blocks:lint does.
-     *
-     * @param array<string, mixed> $yaml
-     * @return list<string>
-     */
-    private function validateAgainstSchema(NewContentBlock $new, array $yaml): array
-    {
-        $result = $this->contentBlockValidator->validateContentBlock($this->createLoadedContentBlock($new, $yaml));
-        $errorsByPath = $this->jsonSchemaErrorFormatter->format($result);
-        $errors = [];
-        foreach ($errorsByPath as $path => $messages) {
-            // Like content-blocks:lint: an error on a field is a false positive if one of its options has an error
-            // (https://github.com/opis/json-schema/issues/148).
-            foreach (array_keys($errorsByPath) as $otherPath) {
-                if (str_starts_with((string) $otherPath, $path . '/')) {
-                    continue 2;
-                }
-            }
-            // "/fields/3/cols" is shown as 'Field "kicker": cols', resolved like content-blocks:lint does.
-            $where = trim((string) $path, '/');
-            $segments = explode('/', $where);
-            if ($segments[0] === 'fields' && isset($segments[1], $yaml['fields'][(int) $segments[1]])) {
-                $option = implode('.', array_slice($segments, 2));
-                $where = sprintf('Field "%s"', $yaml['fields'][(int) $segments[1]]['identifier'] ?? $segments[1]) . ($option !== '' ? ': ' . $option : '');
-            }
-            foreach ((array) $messages as $message) {
-                $errors[] = $where . ': ' . $message;
-            }
-        }
-        return $errors;
     }
 
     /**
