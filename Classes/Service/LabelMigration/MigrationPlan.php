@@ -36,6 +36,15 @@ final readonly class MigrationPlan
         return $this->newXlf !== null || $this->newYaml !== null;
     }
 
+    /**
+     * Whether labels are still in config.yaml (or in conflict with labels.xlf): editing labels.xlf before migrating
+     * them would hide them for good. Labels that cannot be removed from config.yaml ($skipped) do not count.
+     */
+    public function isPending(): bool
+    {
+        return $this->hasChanges() || $this->conflicts !== [] || $this->error !== null;
+    }
+
     public function hasFindings(): bool
     {
         return $this->conflicts !== [] || $this->skipped !== [] || $this->error !== null;

@@ -3,21 +3,85 @@
 
 <f:section name="Content">
     <p><a href="{f:be.uri(route: 'content_cbm')}">&larr; <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.back"/></a></p>
-    <h1><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.heading" arguments="{0: plan.contentBlock}"/></h1>
+    <h1><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.heading" arguments="{0: plan.contentBlock}"/></h1>
 
+    <f:if condition="{migrationPending}">
+        <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::WARNING')}">
+            <p><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.migrateFirst"/></p>
+        </f:be.infobox>
+        <f:render section="Migration" arguments="{_all}"/>
+    </f:if>
+
+    <f:variable name="editable" value="{f:if(condition: '{writable} && !{migrationPending}', then: 1, else: 0)}"/>
+    <f:if condition="{labels}">
+        <f:then>
+            <form method="post" action="{f:be.uri(route: 'content_cbm.labelsSave')}">
+                <input type="hidden" name="contentBlock" value="{plan.contentBlock}"/>
+                <div class="table-fit">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.key"/></th>
+                                <th><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.text"/></th>
+                                <th></th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <f:for each="{labels}" as="label">
+                                <tr>
+                                    <td><code>{label.key}</code></td>
+                                    <td>
+                                        <f:if condition="{editable}">
+                                            <f:then>
+                                                <f:if condition="{label.optional}">
+                                                    <f:then><input class="form-control" type="text" name="labels[{label.key}]" value="{label.value}" placeholder="{f:translate(key: 'LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.optional')}"/></f:then>
+                                                    <f:else><input class="form-control" type="text" name="labels[{label.key}]" value="{label.value}" required/></f:else>
+                                                </f:if>
+                                            </f:then>
+                                            <f:else>{label.value}</f:else>
+                                        </f:if>
+                                    </td>
+                                    <td>
+                                        <f:if condition="{label.field}">
+                                            <f:then><span class="badge badge-info"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.kind.field"/></span></f:then>
+                                            <f:else><span class="badge badge-default"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.kind.custom"/></span></f:else>
+                                        </f:if>
+                                    </td>
+                                    <td class="col-control">
+                                        <f:if condition="{editable} && !{label.field}">
+                                            <button type="submit" class="btn btn-default btn-sm" name="delete" value="{label.key}" formaction="{f:be.uri(route: 'content_cbm.labelsDelete')}" formnovalidate>
+                                                <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.delete"/>
+                                            </button>
+                                        </f:if>
+                                    </td>
+                                </tr>
+                            </f:for>
+                        </tbody>
+                    </table>
+                </div>
+                <f:if condition="{editable}">
+                    <button type="submit" class="btn btn-primary"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.save"/></button>
+                </f:if>
+            </form>
+        </f:then>
+        <f:else>
+            <p><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.empty"/></p>
+        </f:else>
+    </f:if>
+    <p class="text-body-secondary mt-3"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.fieldHint"/></p>
+</f:section>
+
+<f:section name="Migration">
+    <h2><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.heading"/></h2>
     <f:if condition="{plan.error}">
         <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::ERROR')}" title="{f:translate(key: 'LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.error')}">
             <p>{plan.error}</p>
         </f:be.infobox>
     </f:if>
-    <f:if condition="!{hasChanges} && !{plan.conflicts} && !{plan.error}">
-        <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::OK')}">
-            <p><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.nothing"/></p>
-        </f:be.infobox>
-    </f:if>
 
     <f:if condition="{plan.conflicts}">
-        <h2><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.conflicts"/></h2>
+        <h3><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.conflicts"/></h3>
         <p>
             <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.prefer"/>:
             <a class="btn btn-sm {f:if(condition: '{prefer} == \'xlf\'', then: 'btn-primary', else: 'btn-default')}" href="{f:be.uri(route: 'content_cbm.labels', parameters: {contentBlock: plan.contentBlock, prefer: 'xlf'})}">labels.xlf</a>
@@ -25,7 +89,7 @@
         </p>
         <div class="table-fit">
             <table class="table table-striped">
-                <thead><tr><th>Key</th><th>config.yaml</th><th>labels.xlf</th><th><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.kept"/></th></tr></thead>
+                <thead><tr><th><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:editor.key"/></th><th>config.yaml</th><th>labels.xlf</th><th><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.kept"/></th></tr></thead>
                 <tbody>
                     <f:for each="{plan.conflicts}" key="key" as="conflict">
                         <tr><td><code>{key}</code></td><td>{conflict.yaml}</td><td>{conflict.xlf}</td><td><strong>{conflict.kept}</strong></td></tr>
@@ -36,7 +100,7 @@
     </f:if>
 
     <f:if condition="{plan.addedKeys}">
-        <h2><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.added"/></h2>
+        <h3><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.added"/></h3>
         <div class="table-fit">
             <table class="table table-striped">
                 <tbody>
@@ -49,7 +113,7 @@
     </f:if>
 
     <f:if condition="{removed}">
-        <h2><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.removed"/></h2>
+        <h3><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.removed"/></h3>
         <div class="table-fit">
             <table class="table table-striped">
                 <tbody>
@@ -62,7 +126,7 @@
     </f:if>
 
     <f:if condition="{skipped}">
-        <h2><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.skipped"/></h2>
+        <h3><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:labelsPlan.skipped"/></h3>
         <ul>
             <f:for each="{skipped}" as="line">
                 <li>config.yaml:{line.line} <code>{line.key}</code>: {line.value}</li>
@@ -71,7 +135,7 @@
     </f:if>
 
     <f:if condition="{writable} && {hasChanges}">
-        <form method="post" action="{f:be.uri(route: 'content_cbm.labelsApply')}">
+        <form method="post" action="{f:be.uri(route: 'content_cbm.labelsApply')}" class="mb-4">
             <input type="hidden" name="contentBlock" value="{plan.contentBlock}"/>
             <input type="hidden" name="prefer" value="{prefer}"/>
             <button type="submit" class="btn btn-primary"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.apply"/></button>

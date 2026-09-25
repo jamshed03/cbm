@@ -5,22 +5,12 @@ declare(strict_types=1);
 namespace AskoEducation\Cbm\Service\LabelMigration;
 
 use AskoEducation\Cbm\Service\ContentBlockReloader;
-use Symfony\Component\Translation\MessageCatalogue;
+use AskoEducation\Cbm\Service\LanguageFile\LanguageFileService;
 use Symfony\Component\Yaml\Yaml;
-use TYPO3\CMS\ContentBlocks\Definition\Factory\ContentBlockCompiler;
-use TYPO3\CMS\ContentBlocks\FieldType\FieldTypeRegistry;
-use TYPO3\CMS\ContentBlocks\Generator\LanguageFileGenerator;
 use TYPO3\CMS\ContentBlocks\Loader\LoadedContentBlock;
 use TYPO3\CMS\ContentBlocks\Registry\AutomaticLanguageKeysRegistry;
-use TYPO3\CMS\ContentBlocks\Registry\AutomaticLanguageSource;
 use TYPO3\CMS\ContentBlocks\Registry\ContentBlockRegistry;
-use TYPO3\CMS\ContentBlocks\Registry\LanguageFileRegistry;
-use TYPO3\CMS\ContentBlocks\Registry\LanguageFileRegistryFactory;
-use TYPO3\CMS\ContentBlocks\Schema\SimpleTcaSchemaFactory;
 use TYPO3\CMS\ContentBlocks\Utility\ContentBlockPathUtility;
-use TYPO3\CMS\Core\Localization\Loader\XliffLoader;
-use TYPO3\CMS\Core\Localization\TranslationDomainMapper;
-use TYPO3\CMS\Core\Localization\TranslationDomainResolver;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -32,35 +22,9 @@ final readonly class LabelMigrationService
 
     public function __construct(
         private ContentBlockReloader $contentBlockReloader,
-        private ContentBlockCompiler $contentBlockCompiler,
-        private FieldTypeRegistry $fieldTypeRegistry,
-        private SimpleTcaSchemaFactory $simpleTcaSchemaFactory,
-        private TranslationDomainMapper $translationDomainMapper,
-        private TranslationDomainResolver $translationDomainResolver,
-        private XliffLoader $xliffLoader,
+        private LanguageFileService $languageFileService,
         private ConfigYamlLabelStripper $stripper,
     ) {
-    }
-
-    /**
-     * Per Content Block, how many of its automatic language keys labels.xlf does not contain yet – determined with
-     * Content Blocks' own compiler (the keys labels.xlf is generated from) and LanguageFileRegistryFactory.
-     *
-     * @return array<string, int> by Content Block name
-     */
-    public function countKeysMissingInXlf(ContentBlockRegistry $registry): array
-    {
-        $automaticLanguageKeys = $this->compile($registry);
-        $languageFileRegistry = (new LanguageFileRegistryFactory($registry, $this->xliffLoader))->create();
-        $missing = [];
-        foreach ($registry->getAll() as $contentBlock) {
-            $missing[$contentBlock->getName()] = count(array_filter(
-                $automaticLanguageKeys->getByContentBlock($contentBlock),
-                static fn(AutomaticLanguageSource $source): bool => $source->value !== ''
-                    && !$languageFileRegistry->isset($contentBlock->getName(), $source->key),
-            ));
-        }
-        return $missing;
     }
 
     /**
@@ -70,7 +34,7 @@ final readonly class LabelMigrationService
     {
         $registry = $this->contentBlockReloader->loadRegistry();
         $contentBlocks = $this->contentBlockReloader->select($registry, $contentBlockName, $extension);
-        $automaticLanguageKeys = $this->compile($registry);
+        $automaticLanguageKeys = $this->languageFileService->compile($registry);
         return array_map(
             fn(LoadedContentBlock $contentBlock): MigrationPlan => $this->planContentBlock($contentBlock, $registry, $automaticLanguageKeys, $options),
             $contentBlocks,
@@ -79,13 +43,15 @@ final readonly class LabelMigrationService
 
     public function apply(MigrationPlan $plan): void
     {
-        // Same file handling as GenerateLanguageFileCommand::writeLabelsXlf() of Content Blocks.
-        if ($plan->newXlf !== null) {
-            GeneralUtility::mkdir_deep($plan->contentBlockPath . '/' . ContentBlockPathUtility::getLanguageFolder());
-            GeneralUtility::writeFile($plan->contentBlockPath . '/' . ContentBlockPathUtility::getLanguageFilePath(), $plan->newXlf);
-        }
         if ($plan->newYaml !== null) {
             GeneralUtility::writeFile($plan->contentBlockPath . '/' . ContentBlockPathUtility::getContentBlockDefinitionFileName(), $plan->newYaml);
+        }
+        if ($plan->newXlf !== null) {
+            $this->languageFileService->write($plan->contentBlockPath, $plan->newXlf);
+        }
+        if ($plan->hasChanges()) {
+            // A migration changes what TCA is built from (labels gone from config.yaml, new keys in labels.xlf).
+            $this->languageFileService->flushCaches(true);
         }
     }
 
@@ -99,7 +65,7 @@ final readonly class LabelMigrationService
         $xlfPath = $path . '/' . ContentBlockPathUtility::getLanguageFilePath();
         $oldYaml = (string) file_get_contents($path . '/' . ContentBlockPathUtility::getContentBlockDefinitionFileName());
         $oldXlf = is_file($xlfPath) ? (string) file_get_contents($xlfPath) : '';
-        $oldLabels = $this->readXlf($oldXlf);
+        $oldLabels = $this->languageFileService->read($oldXlf);
         $labelLines = $this->stripper->findLabels($oldYaml);
 
         try {
@@ -120,13 +86,13 @@ final readonly class LabelMigrationService
             $labels[$key] = $kept;
         }
 
-        $date = $this->extractDate($oldXlf) ?? $this->now();
-        $newXlf = $this->generateXlf($contentBlock, $automaticLanguageKeys, $labels, $date);
-        $newLabels = $this->readXlf($newXlf);
+        $date = $this->extractDate($oldXlf) ?? $this->languageFileService->now();
+        $newXlf = $this->languageFileService->generate($contentBlock, $automaticLanguageKeys, $labels, $date);
+        $newLabels = $this->languageFileService->read($newXlf);
         // Compare labels, not text: a reformatted labels.xlf is no reason to rewrite it.
         $xlfChanged = $this->sorted($newLabels) !== $this->sorted($oldLabels);
         if ($xlfChanged) {
-            $date = $this->now();
+            $date = $this->languageFileService->now();
             $newXlf = (string) preg_replace('/ date="[^"]*"/', ' date="' . $date . '"', $newXlf, 1);
         }
 
@@ -192,7 +158,7 @@ final readonly class LabelMigrationService
             $values[$source->key] = $source->value;
         }
         $labelsByKey = [];
-        foreach ($this->compile($this->registryWith($registry, $marked))->getByContentBlock($marked) as $source) {
+        foreach ($this->languageFileService->compileFor($registry, $marked)->getByContentBlock($marked) as $source) {
             $labelLine = $labelLinesByMarker[$source->value] ?? null;
             if ($labelLine !== null && ($values[$source->key] ?? null) === $labelLine->value) {
                 $labelsByKey[$source->key] = $labelLine;
@@ -221,7 +187,7 @@ final readonly class LabelMigrationService
                 return 'Stripping labels would change more than labels in config.yaml.';
             }
             $reloaded = $this->contentBlockReloader->reload($contentBlock, $newRawYaml);
-            $regeneratedXlf = $this->generateXlf($reloaded, $this->compile($this->registryWith($registry, $reloaded)), $newLabels, $date);
+            $regeneratedXlf = $this->languageFileService->generate($reloaded, $this->languageFileService->compileFor($registry, $reloaded), $newLabels, $date);
         } catch (\Throwable $e) {
             return 'Stripped config.yaml could not be compiled: ' . $e->getMessage();
         }
@@ -229,61 +195,6 @@ final readonly class LabelMigrationService
             return 'Stripped config.yaml would not resolve to the same labels.xlf.';
         }
         return null;
-    }
-
-    /**
-     * A registry holding $contentBlock plus what its compilation depends on: record types without
-     * an own typeField take it over from Content Blocks compiled before them on the same table.
-     */
-    private function registryWith(ContentBlockRegistry $registry, LoadedContentBlock $contentBlock): ContentBlockRegistry
-    {
-        $yaml = $contentBlock->getYaml();
-        $result = new ContentBlockRegistry($this->simpleTcaSchemaFactory);
-        foreach ($registry->getAll() as $existing) {
-            if ($existing->getName() === $contentBlock->getName()) {
-                $result->register($contentBlock);
-            } elseif (!isset($yaml['typeField']) && $existing->getYaml()['table'] === $yaml['table']) {
-                $result->register($existing);
-            }
-        }
-        return $result;
-    }
-
-    private function compile(ContentBlockRegistry $registry): AutomaticLanguageKeysRegistry
-    {
-        return $this->contentBlockCompiler
-            ->compile($registry, $this->fieldTypeRegistry, $this->simpleTcaSchemaFactory)
-            ->getAutomaticLanguageKeys();
-    }
-
-    /**
-     * @param array<string, string> $labels content of labels.xlf, which takes precedence over config.yaml
-     */
-    private function generateXlf(
-        LoadedContentBlock $contentBlock,
-        AutomaticLanguageKeysRegistry $automaticLanguageKeys,
-        array $labels,
-        string $date,
-    ): string {
-        $languageFileRegistry = new LanguageFileRegistry();
-        $languageFileRegistry->register($contentBlock, new MessageCatalogue('en', ['messages' => $labels]));
-        $generator = new LanguageFileGenerator(
-            $automaticLanguageKeys,
-            $languageFileRegistry,
-            $this->translationDomainMapper,
-            $this->translationDomainResolver,
-        );
-        return $generator->generate($contentBlock, $date);
-    }
-
-    /**
-     * Reads labels.xlf the way Content Blocks does (LanguageFileRegistryFactory).
-     *
-     * @return array<string, string>
-     */
-    private function readXlf(string $xlf): array
-    {
-        return trim($xlf) === '' ? [] : $this->xliffLoader->load($xlf, 'en')->all('messages');
     }
 
     /**
@@ -298,10 +209,5 @@ final readonly class LabelMigrationService
     private function extractDate(string $xlf): ?string
     {
         return preg_match('/ date="([^"]*)"/', $xlf, $match) ? $match[1] : null;
-    }
-
-    private function now(): string
-    {
-        return (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('c');
     }
 }

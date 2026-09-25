@@ -7,10 +7,12 @@ namespace AskoEducation\Cbm\Controller;
 use AskoEducation\Cbm\Service\BackendPreview\BackendPreviewService;
 use AskoEducation\Cbm\Service\BackendPreview\PreviewPlan;
 use AskoEducation\Cbm\Service\ContentBlockReloader;
+use AskoEducation\Cbm\Service\LabelEditor\LabelEditorService;
 use AskoEducation\Cbm\Service\LabelMigration\LabelLine;
 use AskoEducation\Cbm\Service\LabelMigration\LabelMigrationService;
 use AskoEducation\Cbm\Service\LabelMigration\MigrationOptions;
 use AskoEducation\Cbm\Service\LabelMigration\Prefer;
+use AskoEducation\Cbm\Service\LanguageFile\LanguageFileService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Attribute\AsController;
@@ -26,15 +28,14 @@ use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 
 /**
- * Backend module: lists all Content Blocks with the state of their labels and backend preview, and runs the
- * label migration and preview generation per Content Block – the same plan()/apply() as the cbm:* commands.
+ * Backend module: lists all Content Blocks with the state of their labels and backend preview, edits their labels
+ * and runs the label migration and preview generation per Content Block – the same plan()/apply() as the cbm:*
+ * commands.
  * Files are only written in the Development context and never in packages installed into vendor/.
  */
 #[AsController]
 final readonly class ContentBlockModuleController
 {
-    private const LANGUAGE_FILE = 'LLL:EXT:cbm/Resources/Private/Language/module.xlf:';
-
     public function __construct(
         private ModuleTemplateFactory $moduleTemplateFactory,
         private UriBuilder $uriBuilder,
@@ -42,6 +43,8 @@ final readonly class ContentBlockModuleController
         private PackageManager $packageManager,
         private ContentBlockReloader $contentBlockReloader,
         private LabelMigrationService $labelMigrationService,
+        private LabelEditorService $labelEditorService,
+        private LanguageFileService $languageFileService,
         private BackendPreviewService $backendPreviewService,
     ) {
     }
@@ -54,7 +57,7 @@ final readonly class ContentBlockModuleController
             $extensions[$contentBlock->getHostExtension()][] = $contentBlock;
         }
         ksort($extensions);
-        $keysMissingInXlf = $this->labelMigrationService->countKeysMissingInXlf($registry);
+        $keysMissingInXlf = $this->languageFileService->countKeysMissingInXlf($registry);
         $groups = [];
         foreach ($extensions as $extension => $contentBlocks) {
             $previewStatus = [];
@@ -92,6 +95,8 @@ final readonly class ContentBlockModuleController
             ->assignMultiple([
                 'plan' => $plan,
                 'hasChanges' => $plan->hasChanges(),
+                'migrationPending' => $plan->isPending(),
+                'labels' => $this->labelEditorService->getLabels($contentBlock),
                 'removed' => array_map($this->describeLabelLine(...), $plan->removed),
                 'skipped' => array_map($this->describeLabelLine(...), $plan->skipped),
                 'prefer' => $prefer->value,
@@ -105,14 +110,36 @@ final readonly class ContentBlockModuleController
         $body = (array)$request->getParsedBody();
         $contentBlock = (string)($body['contentBlock'] ?? '');
         if (!$this->isWritableContentBlock($contentBlock)) {
-            return $this->redirectWithMessage('message.readOnly', $contentBlock, ContextualFeedbackSeverity::ERROR);
+            return $this->redirectWithMessage($this->translate('message.readOnly', $contentBlock), ContextualFeedbackSeverity::ERROR);
         }
         $prefer = Prefer::tryFrom((string)($body['prefer'] ?? '')) ?? Prefer::Xlf;
         $plan = $this->labelMigrationService->plan($contentBlock, null, new MigrationOptions(prefer: $prefer))[0];
         $this->labelMigrationService->apply($plan);
         return $plan->hasChanges()
-            ? $this->redirectWithMessage('message.labelsApplied', $contentBlock, ContextualFeedbackSeverity::OK)
-            : $this->redirectWithMessage('message.nothingWritten', $contentBlock, ContextualFeedbackSeverity::INFO);
+            ? $this->redirectWithMessage($this->translate('message.labelsApplied', $contentBlock), ContextualFeedbackSeverity::OK)
+            : $this->redirectWithMessage($this->translate('message.nothingWritten', $contentBlock), ContextualFeedbackSeverity::INFO);
+    }
+
+    public function labelsSaveAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $body = (array)$request->getParsedBody();
+        $contentBlock = (string)($body['contentBlock'] ?? '');
+        return $this->editLabels(
+            $contentBlock,
+            fn(): bool => $this->labelEditorService->update($contentBlock, array_map('strval', (array)($body['labels'] ?? []))),
+            'message.labelsSaved',
+        );
+    }
+
+    public function labelsDeleteAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $body = (array)$request->getParsedBody();
+        $contentBlock = (string)($body['contentBlock'] ?? '');
+        return $this->editLabels(
+            $contentBlock,
+            fn(): bool => $this->labelEditorService->delete($contentBlock, (string)($body['delete'] ?? '')),
+            'message.labelDeleted',
+        );
     }
 
     public function previewAction(ServerRequestInterface $request): ResponseInterface
@@ -133,13 +160,33 @@ final readonly class ContentBlockModuleController
         $body = (array)$request->getParsedBody();
         $contentBlock = (string)($body['contentBlock'] ?? '');
         if (!$this->isWritableContentBlock($contentBlock)) {
-            return $this->redirectWithMessage('message.readOnly', $contentBlock, ContextualFeedbackSeverity::ERROR);
+            return $this->redirectWithMessage($this->translate('message.readOnly', $contentBlock), ContextualFeedbackSeverity::ERROR);
         }
         $plan = $this->backendPreviewService->plan($contentBlock, null, (bool)($body['force'] ?? false))[0];
         $this->backendPreviewService->apply($plan);
         return $plan->newContent !== null
-            ? $this->redirectWithMessage('message.previewApplied', $contentBlock, ContextualFeedbackSeverity::OK)
-            : $this->redirectWithMessage('message.nothingWritten', $contentBlock, ContextualFeedbackSeverity::INFO);
+            ? $this->redirectWithMessage($this->translate('message.previewApplied', $contentBlock), ContextualFeedbackSeverity::OK)
+            : $this->redirectWithMessage($this->translate('message.nothingWritten', $contentBlock), ContextualFeedbackSeverity::INFO);
+    }
+
+    /**
+     * Runs a change of labels.xlf and returns to the label page with its outcome.
+     *
+     * @param \Closure(): bool $change returns whether anything was written
+     */
+    private function editLabels(string $contentBlock, \Closure $change, string $successKey): ResponseInterface
+    {
+        if (!$this->isWritableContentBlock($contentBlock)) {
+            return $this->redirectWithMessage($this->translate('message.readOnly', $contentBlock), ContextualFeedbackSeverity::ERROR);
+        }
+        try {
+            $changed = $change();
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($e->getMessage(), ContextualFeedbackSeverity::ERROR, $contentBlock);
+        }
+        return $changed
+            ? $this->redirectWithMessage($this->translate($successKey, $contentBlock), ContextualFeedbackSeverity::OK, $contentBlock)
+            : $this->redirectWithMessage($this->translate('message.nothingWritten', $contentBlock), ContextualFeedbackSeverity::INFO, $contentBlock);
     }
 
     /**
@@ -173,13 +220,23 @@ final readonly class ContentBlockModuleController
         return str_replace(Environment::getProjectPath() . '/', '', (string)realpath(dirname($plan->path)) . '/' . basename($plan->path));
     }
 
-    private function redirectWithMessage(string $key, string $contentBlock, ContextualFeedbackSeverity $severity): ResponseInterface
+    /**
+     * @param ?string $labelPageOf return to the label page of this Content Block instead of the overview
+     */
+    private function redirectWithMessage(string $message, ContextualFeedbackSeverity $severity, ?string $labelPageOf = null): ResponseInterface
     {
-        $message = sprintf($this->getLanguageService()->sL(self::LANGUAGE_FILE . $key), $contentBlock);
         $this->flashMessageService->getMessageQueueByIdentifier()->enqueue(
             new FlashMessage($message, '', $severity, true),
         );
-        return new RedirectResponse((string)$this->uriBuilder->buildUriFromRoute('content_cbm'));
+        $uri = $labelPageOf !== null
+            ? $this->uriBuilder->buildUriFromRoute('content_cbm.labels', ['contentBlock' => $labelPageOf])
+            : $this->uriBuilder->buildUriFromRoute('content_cbm');
+        return new RedirectResponse((string)$uri);
+    }
+
+    private function translate(string $key, string $contentBlock): string
+    {
+        return (string)$this->getLanguageService()->translate($key, 'cbm.module', [$contentBlock]);
     }
 
     private function getLanguageService(): LanguageService

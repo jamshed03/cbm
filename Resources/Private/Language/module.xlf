@@ -40,7 +40,7 @@
                 <source>in labels.xlf</source>
             </trans-unit>
             <trans-unit id="action.labels">
-                <source>Migrate labels</source>
+                <source>Labels</source>
             </trans-unit>
             <trans-unit id="action.preview">
                 <source>Generate preview</source>
@@ -70,10 +70,7 @@
                 <source>not supported</source>
             </trans-unit>
             <trans-unit id="labelsPlan.heading">
-                <source>Migrate labels: %s</source>
-            </trans-unit>
-            <trans-unit id="labelsPlan.nothing">
-                <source>Nothing to do: all labels are in labels.xlf.</source>
+                <source>Migrate from config.yaml</source>
             </trans-unit>
             <trans-unit id="labelsPlan.added">
                 <source>New in labels.xlf</source>
@@ -119,6 +116,45 @@
             </trans-unit>
             <trans-unit id="message.readOnly">
                 <source>Files of %s cannot be changed here.</source>
+            </trans-unit>
+            <trans-unit id="editor.heading">
+                <source>Labels: %s</source>
+            </trans-unit>
+            <trans-unit id="editor.migrateFirst">
+                <source>Some labels are still defined in config.yaml. Migrate them first, then they can be edited here.</source>
+            </trans-unit>
+            <trans-unit id="editor.key">
+                <source>Key</source>
+            </trans-unit>
+            <trans-unit id="editor.text">
+                <source>Text</source>
+            </trans-unit>
+            <trans-unit id="editor.kind.field">
+                <source>Field</source>
+            </trans-unit>
+            <trans-unit id="editor.kind.custom">
+                <source>Custom</source>
+            </trans-unit>
+            <trans-unit id="editor.fieldHint">
+                <source>Field labels belong to fields in config.yaml: they can be changed, but not deleted. Descriptions are optional: leave them empty or clear them to have none. Labels of new fields are added by migrating them from config.yaml.</source>
+            </trans-unit>
+            <trans-unit id="editor.empty">
+                <source>labels.xlf has no labels yet.</source>
+            </trans-unit>
+            <trans-unit id="editor.optional">
+                <source>optional – shown as help text below the field</source>
+            </trans-unit>
+            <trans-unit id="editor.save">
+                <source>Save</source>
+            </trans-unit>
+            <trans-unit id="editor.delete">
+                <source>Delete</source>
+            </trans-unit>
+            <trans-unit id="message.labelsSaved">
+                <source>Labels of %s saved.</source>
+            </trans-unit>
+            <trans-unit id="message.labelDeleted">
+                <source>Label deleted from %s.</source>
             </trans-unit>
         </body>
     </file>

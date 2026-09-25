@@ -71,8 +71,15 @@ On top of that, cbm:
 
 **Content > Content Blocks** (admins only) lists all Content Blocks by extension, with how many of their language keys
 are not in `labels.xlf` yet (Content Blocks' compiler and `LanguageFileRegistryFactory`) and the state of the backend
-preview. Per Content Block, "Migrate labels" and "Generate
-preview" show the same plan as `--dry-run` and write it on "Apply".
+preview. Per Content Block:
+
+- **Labels** lists the labels of `labels.xlf`: change their text and delete custom ones. Field labels
+  (the language keys Content Blocks derives from the fields in `config.yaml`) can be changed but not deleted, as
+  Content Blocks would write them again. While labels are still in `config.yaml`, the page first offers their
+  migration (the same plan as `cbm:labels:migrate --dry-run`). `labels.xlf` is always written by Content Blocks'
+  `LanguageFileGenerator`, and the translation cache is flushed afterwards. Translations (e.g. `de.labels.xlf`)
+  are not edited yet.
+- **Generate preview** shows the same plan as `cbm:preview:generate --dry-run` and writes it on "Apply".
 
 Files are only written in the Development context, and never for extensions installed into `vendor/` (the next
 `composer install` would overwrite them); otherwise the module is an overview only.

@@ -21,6 +21,14 @@ return [
                 'target' => ContentBlockModuleController::class . '::labelsApplyAction',
                 'methods' => ['POST'],
             ],
+            'labelsSave' => [
+                'target' => ContentBlockModuleController::class . '::labelsSaveAction',
+                'methods' => ['POST'],
+            ],
+            'labelsDelete' => [
+                'target' => ContentBlockModuleController::class . '::labelsDeleteAction',
+                'methods' => ['POST'],
+            ],
             'preview' => [
                 'target' => ContentBlockModuleController::class . '::previewAction',
             ],
