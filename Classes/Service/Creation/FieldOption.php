@@ -19,7 +19,8 @@ final readonly class FieldOption
 
     /**
      * @param string $name the option key, "parent.child" for an option inside an object option (e.g. "range.lower")
-     * @param list<string|int> $values the allowed values of enum kinds
+     * @param list<string|int> $values the values to choose from (enum kinds; "true" and "false" for booleans)
+     * @param bool $acceptsInteger a string option that may also be an integer, e.g. "default" of a Select
      */
     public function __construct(
         public string $name,
@@ -29,6 +30,7 @@ final readonly class FieldOption
         public array $values = [],
         public ?int $minimum = null,
         public ?int $maximum = null,
+        public bool $acceptsInteger = false,
     ) {
     }
 

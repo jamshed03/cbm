@@ -188,7 +188,7 @@ final readonly class ContentBlockCreator
             if (!in_array($field->type, $fieldTypes, true)) {
                 $errors[] = $row . ': choose a field type.';
             }
-            if ($field->hasItems() && $field->getItems() === []) {
+            if ($field->needsItems() && $field->parseItems() === []) {
                 $errors[] = $row . ': add at least one item ("value = Label" per line).';
             }
         }
@@ -196,7 +196,8 @@ final readonly class ContentBlockCreator
             return $errors;
         }
         [$yaml, $optionErrors] = $this->buildYaml($new);
-        return $optionErrors !== [] ? $optionErrors : $this->validateAgainstSchema($new, $yaml);
+        // Options that are no valid YAML are left out of $yaml, so the schema still checks all the others.
+        return [...$optionErrors, ...$this->validateAgainstSchema($new, $yaml)];
     }
 
     /**
@@ -205,6 +206,7 @@ final readonly class ContentBlockCreator
      */
     public function create(NewContentBlock $new): void
     {
+        // Built again rather than handed over from validate(), which has to have passed before.
         $contentBlock = $this->createLoadedContentBlock($new, $this->buildYaml($new)[0]);
         $this->contentBlockBuilder->create($contentBlock);
 
@@ -298,14 +300,15 @@ final readonly class ContentBlockCreator
                     continue 2;
                 }
             }
-            // "/fields/3/cols" is shown as 'Field "kicker": cols', like content-blocks:lint resolves it.
-            $segments = explode('/', trim((string) $path, '/'));
-            if (($segments[0] ?? '') === 'fields' && isset($segments[1], $yaml['fields'][(int) $segments[1]])) {
-                $prefix = sprintf('Field "%s"', $yaml['fields'][(int) $segments[1]]['identifier'] ?? $segments[1]);
-                $segments = [$prefix . (isset($segments[2]) ? ': ' . implode('.', array_slice($segments, 2)) : '')];
+            // "/fields/3/cols" is shown as 'Field "kicker": cols', resolved like content-blocks:lint does.
+            $where = trim((string) $path, '/');
+            $segments = explode('/', $where);
+            if ($segments[0] === 'fields' && isset($segments[1], $yaml['fields'][(int) $segments[1]])) {
+                $option = implode('.', array_slice($segments, 2));
+                $where = sprintf('Field "%s"', $yaml['fields'][(int) $segments[1]]['identifier'] ?? $segments[1]) . ($option !== '' ? ': ' . $option : '');
             }
             foreach ((array) $messages as $message) {
-                $errors[] = implode('/', $segments) . ': ' . $message;
+                $errors[] = $where . ': ' . $message;
             }
         }
         return $errors;

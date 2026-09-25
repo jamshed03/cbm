@@ -78,6 +78,11 @@
         <template data-cbm-field-template>
             <f:render section="FieldRow" arguments="{index: '__INDEX__', fieldTypes: fieldTypes, fieldOptions: fieldOptions}"/>
         </template>
+        <f:for each="{fieldOptions}" key="optionType" as="options">
+            <template data-cbm-options-template="{optionType}">
+                <f:render section="OptionGroup" arguments="{index: '__INDEX__', options: options}"/>
+            </template>
+        </f:for>
         <p><button type="button" class="btn btn-default" data-cbm-add-field><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.addField"/></button></p>
 
         <f:if condition="{isDevelopment}">
@@ -87,7 +92,7 @@
 </f:section>
 
 <f:section name="FieldRow">
-    <div class="card mb-2" data-cbm-field>
+    <div class="card mb-2" data-cbm-field data-cbm-index="{index}">
         <div class="card-body row g-2 align-items-end">
             <div class="col-md-2">
                 <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.identifier"/></label>
@@ -122,59 +127,56 @@
                 <label class="form-label"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.items"/></label>
                 <textarea class="form-control font-monospace" rows="3" name="fields[{index}][items]" placeholder="light = Light&#10;dark = Dark">{field.items}</textarea>
             </div>
-            <details class="col-12" data-cbm-options>
+            <details class="col-12">
                 <summary><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:create.options"/></summary>
-                <f:for each="{fieldOptions}" key="optionType" as="options">
-                    <div class="row g-2 mt-1" data-cbm-options-for="{optionType}">
-                        <f:for each="{options}" as="option">
-                            <div class="col-md-3">
-                                <label class="form-label mb-0" for="cbm-option-{index}-{optionType}-{option.name}" title="{option.description}"><code>{option.name}</code></label>
-                                <f:render section="OptionInput" arguments="{option: option, id: 'cbm-option-{index}-{optionType}-{option.name}', name: 'fields[{index}][options][{option.inputName}]', value: '{field.options.{option.name}}'}"/>
-                            </div>
-                        </f:for>
-                    </div>
-                </f:for>
+                <div data-cbm-options>
+                    <f:for each="{fieldOptions}" key="optionType" as="options">
+                        <f:if condition="{optionType} == {field.type}">
+                            <f:render section="OptionGroup" arguments="{index: index, options: options, values: field.options}"/>
+                        </f:if>
+                    </f:for>
+                </div>
             </details>
         </div>
     </div>
 </f:section>
 
+<f:section name="OptionGroup">
+    <div class="row g-2 mt-1">
+        <f:for each="{options}" as="option">
+            <f:variable name="optionId" value="cbm-option-{index}-{option.name}"/>
+            <f:variable name="value" value="{values.{option.name}}"/>
+            <div class="col-md-3" title="{option.description}">
+                <label class="form-label mb-0" for="{optionId}"><code>{option.name}</code></label>
+                <f:render section="OptionInput" arguments="{option: option, id: optionId, name: 'fields[{index}][options][{option.inputName}]', value: value}"/>
+            </div>
+        </f:for>
+    </div>
+</f:section>
+
 <f:section name="OptionInput">
-    <f:switch expression="{option.kind}">
-        <f:case value="boolean">
-            <select class="form-select form-select-sm" id="{id}" name="{name}" title="{option.description}">
-                <option value="">{f:if(condition: option.default, then: '– ({option.default})', else: '–')}</option>
-                <option value="true" {f:if(condition: '{value} == \'true\'', then: 'selected')}>true</option>
-                <option value="false" {f:if(condition: '{value} == \'false\'', then: 'selected')}>false</option>
+    <f:if condition="{option.kind} == 'multiEnum'">
+        <f:then>
+            <select class="form-select form-select-sm" id="{id}" name="{name}[]" multiple size="3">
+                <f:for each="{option.values}" as="allowed">
+                    <option value="{allowed}"<f:for each="{value}" as="chosen"><f:if condition="{chosen} == {allowed}"> selected</f:if></f:for>>{allowed}</option>
+                </f:for>
             </select>
-        </f:case>
-        <f:case value="enum">
-            <select class="form-select form-select-sm" id="{id}" name="{name}" title="{option.description}">
+        </f:then>
+        <f:else if="{option.values}">
+            <select class="form-select form-select-sm" id="{id}" name="{name}">
                 <option value="">{f:if(condition: option.default, then: '– ({option.default})', else: '–')}</option>
                 <f:for each="{option.values}" as="allowed">
                     <option value="{allowed}" {f:if(condition: '{value} == {allowed}', then: 'selected')}>{allowed}</option>
                 </f:for>
             </select>
-        </f:case>
-        <f:case value="multiEnum">
-            <select class="form-select form-select-sm" id="{id}" name="{name}[]" multiple size="3" title="{option.description}">
-                <f:for each="{option.values}" as="allowed">
-                    <option value="{allowed}">{allowed}</option>
-                </f:for>
-            </select>
-        </f:case>
-        <f:case value="integer">
-            <input class="form-control form-control-sm" type="number" step="1" id="{id}" name="{name}" value="{value}" min="{option.minimum}" max="{option.maximum}" placeholder="{option.default}" title="{option.description}"/>
-        </f:case>
-        <f:case value="number">
-            <input class="form-control form-control-sm" type="number" step="any" id="{id}" name="{name}" value="{value}" placeholder="{option.default}" title="{option.description}"/>
-        </f:case>
-        <f:case value="list">
-            <input class="form-control form-control-sm" type="text" id="{id}" name="{name}" value="{value}" placeholder="a, b" title="{option.description}"/>
-        </f:case>
-        <f:defaultCase>
-            <input class="form-control form-control-sm" type="text" id="{id}" name="{name}" value="{value}" placeholder="{option.default}" title="{option.description}"/>
-        </f:defaultCase>
-    </f:switch>
+        </f:else>
+        <f:else if="{option.kind} == 'integer' || {option.kind} == 'number'">
+            <input class="form-control form-control-sm" type="number" step="{f:if(condition: '{option.kind} == \'integer\'', then: '1', else: 'any')}" id="{id}" name="{name}" value="{value}" min="{option.minimum}" max="{option.maximum}" placeholder="{option.default}"/>
+        </f:else>
+        <f:else>
+            <input class="form-control form-control-sm" type="text" id="{id}" name="{name}" value="{value}" placeholder="{f:if(condition: '{option.kind} == \'list\'', then: 'a, b', else: option.default)}"/>
+        </f:else>
+    </f:if>
 </f:section>
 </html>

@@ -40,15 +40,17 @@ final readonly class NewField
         );
     }
 
-    public function hasItems(): bool
+    public function needsItems(): bool
     {
         return in_array($this->type, self::TYPES_WITH_ITEMS, true);
     }
 
     /**
+     * Not named getItems(), like needsItems() is not hasItems(): Fluid would read {field.items} through them.
+     *
      * @return list<array{label: string, value: string}> from one "value = Label" (or just "value") per line
      */
-    public function getItems(): array
+    public function parseItems(): array
     {
         $items = [];
         foreach (GeneralUtility::trimExplode("\n", $this->items, true) as $line) {
@@ -78,8 +80,8 @@ final readonly class NewField
         if ($this->type === 'Select') {
             $field['renderType'] = 'selectSingle';
         }
-        if ($this->hasItems()) {
-            $field['items'] = $this->getItems();
+        if ($this->needsItems()) {
+            $field['items'] = $this->parseItems();
         }
         return array_replace($field, $options);
     }
