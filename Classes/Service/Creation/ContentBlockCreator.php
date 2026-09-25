@@ -13,6 +13,8 @@ use TYPO3\CMS\ContentBlocks\Builder\ContentBlockBuilder;
 use TYPO3\CMS\ContentBlocks\Definition\ContentType\ContentType;
 use TYPO3\CMS\ContentBlocks\Definition\ContentType\ContentTypeIcon;
 use TYPO3\CMS\ContentBlocks\FieldType\FieldTypeRegistry;
+use TYPO3\CMS\ContentBlocks\JsonSchemaValidation\ContentBlockValidator;
+use TYPO3\CMS\ContentBlocks\JsonSchemaValidation\JsonSchemaErrorFormatter;
 use TYPO3\CMS\ContentBlocks\Loader\LoadedContentBlock;
 use TYPO3\CMS\ContentBlocks\Registry\ContentBlockRegistry;
 use TYPO3\CMS\ContentBlocks\Service\PackageResolver;
@@ -64,6 +66,9 @@ final readonly class ContentBlockCreator
         private SchemaMigrator $schemaMigrator,
         private ConfigYamlLabelStripper $configYamlLabelStripper,
         private BackendPreviewService $backendPreviewService,
+        private FieldOptionSchema $fieldOptionSchema,
+        private ContentBlockValidator $contentBlockValidator,
+        private JsonSchemaErrorFormatter $jsonSchemaErrorFormatter,
     ) {
     }
 
@@ -83,6 +88,21 @@ final readonly class ContentBlockCreator
     public function getFieldTypes(): array
     {
         return array_values(array_filter(self::FIELD_TYPES, $this->fieldTypeRegistry->has(...)));
+    }
+
+    /**
+     * The options of each offered field type. They are the same for all content types, so they come from the
+     * content element schema; validation uses the schema of the chosen content type.
+     *
+     * @return array<string, list<FieldOption>> by field type
+     */
+    public function getFieldOptions(): array
+    {
+        $options = [];
+        foreach ($this->getFieldTypes() as $fieldType) {
+            $options[$fieldType] = $this->fieldOptionSchema->getOptions(ContentType::CONTENT_ELEMENT, $fieldType);
+        }
+        return $options;
     }
 
     /**
@@ -172,7 +192,11 @@ final readonly class ContentBlockCreator
                 $errors[] = $row . ': add at least one item ("value = Label" per line).';
             }
         }
-        return $errors;
+        if ($errors !== []) {
+            return $errors;
+        }
+        [$yaml, $optionErrors] = $this->buildYaml($new);
+        return $optionErrors !== [] ? $optionErrors : $this->validateAgainstSchema($new, $yaml);
     }
 
     /**
@@ -181,22 +205,7 @@ final readonly class ContentBlockCreator
      */
     public function create(NewContentBlock $new): void
     {
-        $yaml = $this->buildConfig($new, $new->vendor, $new->name);
-        if ($new->contentType === ContentType::CONTENT_ELEMENT) {
-            $yaml['group'] = $new->group;
-            if ($new->description !== '') {
-                $yaml['description'] = $new->description;
-            }
-        }
-        $yaml['fields'] = [...($yaml['fields'] ?? []), ...array_map(static fn(NewField $field): array => $field->toYaml(), $new->fields)];
-        $contentBlock = new LoadedContentBlock(
-            name: $new->getFullName(),
-            yaml: $yaml,
-            icon: new ContentTypeIcon(),
-            hostExtension: $new->extension,
-            extPath: $this->getExtPath($new),
-            contentType: $new->contentType,
-        );
+        $contentBlock = $this->createLoadedContentBlock($new, $this->buildYaml($new)[0]);
         $this->contentBlockBuilder->create($contentBlock);
 
         $configPath = GeneralUtility::getFileAbsFileName($contentBlock->getExtPath()) . '/' . $contentBlock->getPackage()
@@ -243,6 +252,78 @@ final readonly class ContentBlockCreator
         if ($errors !== []) {
             throw new \RuntimeException(implode(' ', $errors), 1758700020);
         }
+    }
+
+    /**
+     * config.yaml of the new Content Block, before ContentBlockBuilder moves title and description into labels.xlf.
+     *
+     * @return array{0: array<string, mixed>, 1: list<string>} the configuration and options that could not be converted
+     */
+    private function buildYaml(NewContentBlock $new): array
+    {
+        $yaml = $this->buildConfig($new, $new->vendor, $new->name);
+        if ($new->contentType === ContentType::CONTENT_ELEMENT) {
+            $yaml['group'] = $new->group;
+            if ($new->description !== '') {
+                $yaml['description'] = $new->description;
+            }
+        }
+        $errors = [];
+        foreach ($new->fields as $field) {
+            [$options, $optionErrors] = $this->fieldOptionSchema->convert($new->contentType, $field->type, $field->options);
+            foreach ($optionErrors as $optionError) {
+                $errors[] = sprintf('Field "%s": %s', $field->identifier, $optionError);
+            }
+            $yaml['fields'][] = $field->toYaml($options);
+        }
+        return [$yaml, $errors];
+    }
+
+    /**
+     * Validates the new configuration like content-blocks:lint does.
+     *
+     * @param array<string, mixed> $yaml
+     * @return list<string>
+     */
+    private function validateAgainstSchema(NewContentBlock $new, array $yaml): array
+    {
+        $result = $this->contentBlockValidator->validateContentBlock($this->createLoadedContentBlock($new, $yaml));
+        $errorsByPath = $this->jsonSchemaErrorFormatter->format($result);
+        $errors = [];
+        foreach ($errorsByPath as $path => $messages) {
+            // Like content-blocks:lint: an error on a field is a false positive if one of its options has an error
+            // (https://github.com/opis/json-schema/issues/148).
+            foreach (array_keys($errorsByPath) as $otherPath) {
+                if (str_starts_with((string) $otherPath, $path . '/')) {
+                    continue 2;
+                }
+            }
+            // "/fields/3/cols" is shown as 'Field "kicker": cols', like content-blocks:lint resolves it.
+            $segments = explode('/', trim((string) $path, '/'));
+            if (($segments[0] ?? '') === 'fields' && isset($segments[1], $yaml['fields'][(int) $segments[1]])) {
+                $prefix = sprintf('Field "%s"', $yaml['fields'][(int) $segments[1]]['identifier'] ?? $segments[1]);
+                $segments = [$prefix . (isset($segments[2]) ? ': ' . implode('.', array_slice($segments, 2)) : '')];
+            }
+            foreach ((array) $messages as $message) {
+                $errors[] = implode('/', $segments) . ': ' . $message;
+            }
+        }
+        return $errors;
+    }
+
+    /**
+     * @param array<string, mixed> $yaml
+     */
+    private function createLoadedContentBlock(NewContentBlock $new, array $yaml): LoadedContentBlock
+    {
+        return new LoadedContentBlock(
+            name: $new->getFullName(),
+            yaml: $yaml,
+            icon: new ContentTypeIcon(),
+            hostExtension: $new->extension,
+            extPath: $this->getExtPath($new),
+            contentType: $new->contentType,
+        );
     }
 
     /**

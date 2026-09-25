@@ -23,6 +23,7 @@ final readonly class NewField
         public string $description = '',
         public bool $required = false,
         public string $items = '',
+        public array $options = [],
     ) {
     }
 
@@ -35,6 +36,7 @@ final readonly class NewField
             description: trim((string) ($data['description'] ?? '')),
             required: (bool) ($data['required'] ?? false),
             items: (string) ($data['items'] ?? ''),
+            options: (array) ($data['options'] ?? []),
         );
     }
 
@@ -57,9 +59,11 @@ final readonly class NewField
     }
 
     /**
+     * @param array<string, mixed> $options the options as config.yaml values (see FieldOptionSchema::convert());
+     *                                      they win over what the form sets otherwise, e.g. renderType
      * @return array<string, mixed> the field as in config.yaml
      */
-    public function toYaml(): array
+    public function toYaml(array $options = []): array
     {
         $field = ['identifier' => $this->identifier, 'type' => $this->type];
         if ($this->label !== '') {
@@ -77,6 +81,6 @@ final readonly class NewField
         if ($this->hasItems()) {
             $field['items'] = $this->getItems();
         }
-        return $field;
+        return array_replace($field, $options);
     }
 }

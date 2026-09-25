@@ -237,6 +237,7 @@ final readonly class ContentBlockModuleController
                 'errors' => $errors,
                 'contentTypes' => ContentBlockCreator::CONTENT_TYPES,
                 'fieldTypes' => $this->contentBlockCreator->getFieldTypes(),
+                'fieldOptions' => $this->contentBlockCreator->getFieldOptions(),
                 'typesWithItems' => implode(',', NewField::TYPES_WITH_ITEMS),
                 'groups' => $this->contentBlockCreator->getGroups($registry),
                 'extensions' => $extensions,

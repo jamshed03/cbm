@@ -252,6 +252,9 @@
             <trans-unit id="message.createReadOnly">
                 <source>Content Blocks can only be created in the Development context.</source>
             </trans-unit>
+            <trans-unit id="create.options">
+                <source>Options (from the Content Blocks schema; empty = default)</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

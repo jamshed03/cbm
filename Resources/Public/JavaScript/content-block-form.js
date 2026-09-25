@@ -1,6 +1,6 @@
 /**
- * Form to create a Content Block: add and remove field rows, show the items of Select/Radio fields and the inputs
- * that only apply to the chosen content type.
+ * Form to create a Content Block: add and remove field rows, show the items of Select/Radio fields and the options of
+ * the chosen field type, and the inputs that only apply to the chosen content type.
  */
 const form = document.querySelector('[data-cbm-create]')
 
@@ -12,7 +12,16 @@ if (form) {
     let nextIndex = fieldList.querySelectorAll('[data-cbm-field]').length
 
     const toggleItems = (row) => {
-        row.querySelector('[data-cbm-items]').hidden = !typesWithItems.includes(row.querySelector('[data-cbm-type]').value)
+        const type = row.querySelector('[data-cbm-type]').value
+        row.querySelector('[data-cbm-items]').hidden = !typesWithItems.includes(type)
+        // Only the options of the chosen field type are shown and submitted.
+        row.querySelectorAll('[data-cbm-options-for]').forEach((group) => {
+            const active = group.dataset.cbmOptionsFor === type
+            group.hidden = !active
+            group.querySelectorAll('input, select').forEach((input) => {
+                input.disabled = !active
+            })
+        })
     }
     const toggleContentType = () => {
         form.querySelectorAll('[data-cbm-only]').forEach((element) => {

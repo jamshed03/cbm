@@ -83,7 +83,10 @@ preview. Per Content Block:
   are not edited yet.
 - **Create Content Block** (Development context only): content element, record type or page type with vendor, name,
   title and extension (plus group and description for content elements, the doktype for page types) and a list of
-  fields (identifier, type, label, description, required; items for Select and Radio). It is created like
+  fields (identifier, type, label, description, required; items for Select and Radio; and the options of the field
+  type, e.g. enableRichtext, rows and cols of a Textarea – read from the JSON schema Content Blocks lints against, so
+  every option of the installed Content Blocks version is offered; nested structures like fieldControl are not).
+  The configuration is validated against that schema like `content-blocks:lint` before anything is written. It is created like
   `content-blocks:create` does (Content Blocks' `ConfigBuilder` and `ContentBlockBuilder`), with its labels only in
   `labels.xlf`. In a second request, once TCA knows the new Content Block, its table or columns are added (only
   those of its table, never changes or drops elsewhere) and the backend preview is generated.
