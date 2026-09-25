@@ -25,6 +25,7 @@ vendor/bin/typo3 cbm:labels:migrate -e my_extension         # all Content Blocks
 otherwise the command reports an error and leaves it untouched.
 
 Options:
+
 - `--keep-yaml` only writes `labels.xlf`
 - `--prefer=xlf|yaml` decides which value wins when both files define a label differently
   (default `xlf`, which is what Content Blocks shows in the backend anyway)
@@ -43,8 +44,8 @@ The template is built on Content Blocks' own `HtmlTemplateCodeGenerator` (same w
 `content-blocks:generate:backend-preview`), but its "Content" section calls one partial per field:
 
 ```html
-<f:render partial="Cbm/Text" arguments="{record: data, field: 'portfolio_about_kicker'}"/>
-<f:render partial="Cbm/Collection" arguments="{record: data, field: 'stats', fields: {0: {type: 'Text', field: 'number'}}, label: 'LLL:…:stats.label'}"/>
+<f:render partial="Cbm/Text" arguments="{record: data, field: 'portfolio_about_kicker'}" />
+<f:render partial="Cbm/Collection" arguments="{record: data, field: 'stats', fields: {0: {type: 'Text', field: 'number'}}, label: 'LLL:…:stats.label'}" />
 ```
 
 There is one partial per Content Blocks field type, named like the type, in `Resources/Private/Partials/Cbm/`;
@@ -62,6 +63,7 @@ relations to tables without a preview renderer (e.g. pages) and for Collections 
 parent's preview).
 
 On top of that, cbm:
+
 - works on all Content Blocks of an extension at once,
 - only writes previews that are missing or still the empty placeholder
   ("Preview for Content Block: vendor/name"); hand-written ones are kept unless `--force` is given,
@@ -79,6 +81,12 @@ preview. Per Content Block:
   migration (the same plan as `cbm:labels:migrate --dry-run`). `labels.xlf` is always written by Content Blocks'
   `LanguageFileGenerator`, and the translation cache is flushed afterwards. Translations (e.g. `de.labels.xlf`)
   are not edited yet.
+- **Create Content Block** (Development context only): content element, record type or page type with vendor, name,
+  title and extension (plus group and description for content elements, the doktype for page types) and a list of
+  fields (identifier, type, label, description, required; items for Select and Radio). It is created like
+  `content-blocks:create` does (Content Blocks' `ConfigBuilder` and `ContentBlockBuilder`), with its labels only in
+  `labels.xlf`. In a second request, once TCA knows the new Content Block, its table or columns are added (only
+  those of its table, never changes or drops elsewhere) and the backend preview is generated.
 - **Generate preview** shows the same plan as `cbm:preview:generate --dry-run` and writes it on "Apply".
 
 Files are only written in the Development context, and never for extensions installed into `vendor/` (the next

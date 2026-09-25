@@ -7,6 +7,9 @@ namespace AskoEducation\Cbm\Controller;
 use AskoEducation\Cbm\Service\BackendPreview\BackendPreviewService;
 use AskoEducation\Cbm\Service\BackendPreview\PreviewPlan;
 use AskoEducation\Cbm\Service\ContentBlockReloader;
+use AskoEducation\Cbm\Service\Creation\ContentBlockCreator;
+use AskoEducation\Cbm\Service\Creation\NewContentBlock;
+use AskoEducation\Cbm\Service\Creation\NewField;
 use AskoEducation\Cbm\Service\LabelEditor\LabelEditorService;
 use AskoEducation\Cbm\Service\LabelMigration\LabelLine;
 use AskoEducation\Cbm\Service\LabelMigration\LabelMigrationService;
@@ -19,6 +22,7 @@ use TYPO3\CMS\Backend\Attribute\AsController;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\ContentBlocks\Loader\LoadedContentBlock;
+use TYPO3\CMS\ContentBlocks\Registry\ContentBlockRegistry;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -45,6 +49,7 @@ final readonly class ContentBlockModuleController
         private LabelMigrationService $labelMigrationService,
         private LabelEditorService $labelEditorService,
         private LanguageFileService $languageFileService,
+        private ContentBlockCreator $contentBlockCreator,
         private BackendPreviewService $backendPreviewService,
     ) {
     }
@@ -61,12 +66,12 @@ final readonly class ContentBlockModuleController
         $groups = [];
         foreach ($extensions as $extension => $contentBlocks) {
             $previewStatus = [];
-            foreach ($this->backendPreviewService->plan(null, (string)$extension) as $plan) {
+            foreach ($this->backendPreviewService->plan(null, (string) $extension) as $plan) {
                 $previewStatus[$plan->contentBlock] = $plan->status;
             }
             $groups[] = [
                 'extension' => $extension,
-                'writable' => $this->isWritable((string)$extension),
+                'writable' => $this->isWritable((string) $extension),
                 'contentBlocks' => array_map(
                     fn(LoadedContentBlock $contentBlock): array => [
                         'name' => $contentBlock->getName(),
@@ -88,8 +93,8 @@ final readonly class ContentBlockModuleController
 
     public function labelsAction(ServerRequestInterface $request): ResponseInterface
     {
-        $contentBlock = (string)($request->getQueryParams()['contentBlock'] ?? '');
-        $prefer = Prefer::tryFrom((string)($request->getQueryParams()['prefer'] ?? '')) ?? Prefer::Xlf;
+        $contentBlock = (string) ($request->getQueryParams()['contentBlock'] ?? '');
+        $prefer = Prefer::tryFrom((string) ($request->getQueryParams()['prefer'] ?? '')) ?? Prefer::Xlf;
         $plan = $this->labelMigrationService->plan($contentBlock, null, new MigrationOptions(prefer: $prefer))[0];
         return $this->moduleTemplateFactory->create($request)
             ->assignMultiple([
@@ -107,12 +112,12 @@ final readonly class ContentBlockModuleController
 
     public function labelsApplyAction(ServerRequestInterface $request): ResponseInterface
     {
-        $body = (array)$request->getParsedBody();
-        $contentBlock = (string)($body['contentBlock'] ?? '');
+        $body = (array) $request->getParsedBody();
+        $contentBlock = (string) ($body['contentBlock'] ?? '');
         if (!$this->isWritableContentBlock($contentBlock)) {
             return $this->redirectWithMessage($this->translate('message.readOnly', $contentBlock), ContextualFeedbackSeverity::ERROR);
         }
-        $prefer = Prefer::tryFrom((string)($body['prefer'] ?? '')) ?? Prefer::Xlf;
+        $prefer = Prefer::tryFrom((string) ($body['prefer'] ?? '')) ?? Prefer::Xlf;
         $plan = $this->labelMigrationService->plan($contentBlock, null, new MigrationOptions(prefer: $prefer))[0];
         $this->labelMigrationService->apply($plan);
         return $plan->hasChanges()
@@ -122,29 +127,75 @@ final readonly class ContentBlockModuleController
 
     public function labelsSaveAction(ServerRequestInterface $request): ResponseInterface
     {
-        $body = (array)$request->getParsedBody();
-        $contentBlock = (string)($body['contentBlock'] ?? '');
+        $body = (array) $request->getParsedBody();
+        $contentBlock = (string) ($body['contentBlock'] ?? '');
         return $this->editLabels(
             $contentBlock,
-            fn(): bool => $this->labelEditorService->update($contentBlock, array_map('strval', (array)($body['labels'] ?? []))),
+            fn(): bool => $this->labelEditorService->update($contentBlock, array_map('strval', (array) ($body['labels'] ?? []))),
             'message.labelsSaved',
         );
     }
 
     public function labelsDeleteAction(ServerRequestInterface $request): ResponseInterface
     {
-        $body = (array)$request->getParsedBody();
-        $contentBlock = (string)($body['contentBlock'] ?? '');
+        $body = (array) $request->getParsedBody();
+        $contentBlock = (string) ($body['contentBlock'] ?? '');
         return $this->editLabels(
             $contentBlock,
-            fn(): bool => $this->labelEditorService->delete($contentBlock, (string)($body['delete'] ?? '')),
+            fn(): bool => $this->labelEditorService->delete($contentBlock, (string) ($body['delete'] ?? '')),
             'message.labelDeleted',
         );
     }
 
+    public function createAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $registry = $this->contentBlockReloader->loadRegistry();
+        $extensions = $this->getWritableExtensions();
+        return $this->renderCreateForm($request, $this->contentBlockCreator->suggest($registry, $extensions), [], $registry, $extensions);
+    }
+
+    public function createSubmitAction(ServerRequestInterface $request): ResponseInterface
+    {
+        if (!Environment::getContext()->isDevelopment()) {
+            return $this->redirectWithMessage($this->translate('message.createReadOnly', ''), ContextualFeedbackSeverity::ERROR);
+        }
+        $new = NewContentBlock::fromFormData((array) $request->getParsedBody());
+        $registry = $this->contentBlockReloader->loadRegistry();
+        $extensions = $this->getWritableExtensions();
+        $errors = $this->contentBlockCreator->validate($new, $registry, $extensions);
+        if ($errors === []) {
+            try {
+                $this->contentBlockCreator->create($new);
+                // A new request, so that TCA and the database definitions know the new Content Block.
+                return new RedirectResponse((string) $this->uriBuilder->buildUriFromRoute('content_cbm.createFinish', ['contentBlock' => $new->getFullName()]));
+            } catch (\Throwable $e) {
+                $errors = [$e->getMessage()];
+            }
+        }
+        return $this->renderCreateForm($request, $new, $errors, $registry, $extensions);
+    }
+
+    public function createFinishAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $contentBlock = (string) ($request->getQueryParams()['contentBlock'] ?? '');
+        if (!$this->isWritableContentBlock($contentBlock)) {
+            return $this->redirectWithMessage($this->translate('message.readOnly', $contentBlock), ContextualFeedbackSeverity::ERROR);
+        }
+        try {
+            $this->contentBlockCreator->finish($contentBlock);
+        } catch (\Throwable $e) {
+            return $this->redirectWithMessage(
+                $this->translate('message.createdWithIssue', $contentBlock) . ' ' . $e->getMessage(),
+                ContextualFeedbackSeverity::WARNING,
+                $contentBlock,
+            );
+        }
+        return $this->redirectWithMessage($this->translate('message.created', $contentBlock), ContextualFeedbackSeverity::OK, $contentBlock);
+    }
+
     public function previewAction(ServerRequestInterface $request): ResponseInterface
     {
-        $contentBlock = (string)($request->getQueryParams()['contentBlock'] ?? '');
+        $contentBlock = (string) ($request->getQueryParams()['contentBlock'] ?? '');
         $plan = $this->backendPreviewService->plan($contentBlock, null, true)[0];
         return $this->moduleTemplateFactory->create($request)
             ->assignMultiple([
@@ -157,16 +208,49 @@ final readonly class ContentBlockModuleController
 
     public function previewApplyAction(ServerRequestInterface $request): ResponseInterface
     {
-        $body = (array)$request->getParsedBody();
-        $contentBlock = (string)($body['contentBlock'] ?? '');
+        $body = (array) $request->getParsedBody();
+        $contentBlock = (string) ($body['contentBlock'] ?? '');
         if (!$this->isWritableContentBlock($contentBlock)) {
             return $this->redirectWithMessage($this->translate('message.readOnly', $contentBlock), ContextualFeedbackSeverity::ERROR);
         }
-        $plan = $this->backendPreviewService->plan($contentBlock, null, (bool)($body['force'] ?? false))[0];
+        $plan = $this->backendPreviewService->plan($contentBlock, null, (bool) ($body['force'] ?? false))[0];
         $this->backendPreviewService->apply($plan);
         return $plan->newContent !== null
             ? $this->redirectWithMessage($this->translate('message.previewApplied', $contentBlock), ContextualFeedbackSeverity::OK)
             : $this->redirectWithMessage($this->translate('message.nothingWritten', $contentBlock), ContextualFeedbackSeverity::INFO);
+    }
+
+    /**
+     * @param list<string> $errors
+     * @param list<string> $extensions the writable extensions
+     */
+    private function renderCreateForm(
+        ServerRequestInterface $request,
+        NewContentBlock $new,
+        array $errors,
+        ContentBlockRegistry $registry,
+        array $extensions,
+    ): ResponseInterface {
+        return $this->moduleTemplateFactory->create($request)
+            ->assignMultiple([
+                'new' => $new,
+                'errors' => $errors,
+                'contentTypes' => ContentBlockCreator::CONTENT_TYPES,
+                'fieldTypes' => $this->contentBlockCreator->getFieldTypes(),
+                'typesWithItems' => implode(',', NewField::TYPES_WITH_ITEMS),
+                'groups' => $this->contentBlockCreator->getGroups($registry),
+                'extensions' => $extensions,
+                'isDevelopment' => Environment::getContext()->isDevelopment(),
+            ])
+            ->renderResponse('Module/Create');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function getWritableExtensions(): array
+    {
+        return array_values(array_filter($this->contentBlockCreator->getExtensions(), $this->isWritable(...)));
     }
 
     /**
@@ -210,14 +294,14 @@ final readonly class ContentBlockModuleController
      */
     private function isWritable(string $extension): bool
     {
-        $packagePath = (string)realpath($this->packageManager->getPackage($extension)->getPackagePath());
+        $packagePath = (string) realpath($this->packageManager->getPackage($extension)->getPackagePath());
         return Environment::getContext()->isDevelopment()
             && !str_starts_with($packagePath, Environment::getProjectPath() . '/vendor/');
     }
 
     private function relativePath(PreviewPlan $plan): string
     {
-        return str_replace(Environment::getProjectPath() . '/', '', (string)realpath(dirname($plan->path)) . '/' . basename($plan->path));
+        return str_replace(Environment::getProjectPath() . '/', '', (string) realpath(dirname($plan->path)) . '/' . basename($plan->path));
     }
 
     /**
@@ -231,12 +315,12 @@ final readonly class ContentBlockModuleController
         $uri = $labelPageOf !== null
             ? $this->uriBuilder->buildUriFromRoute('content_cbm.labels', ['contentBlock' => $labelPageOf])
             : $this->uriBuilder->buildUriFromRoute('content_cbm');
-        return new RedirectResponse((string)$uri);
+        return new RedirectResponse((string) $uri);
     }
 
     private function translate(string $key, string $contentBlock): string
     {
-        return (string)$this->getLanguageService()->translate($key, 'cbm.module', [$contentBlock]);
+        return (string) $this->getLanguageService()->translate($key, 'cbm.module', [$contentBlock]);
     }
 
     private function getLanguageService(): LanguageService

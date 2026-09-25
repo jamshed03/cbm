@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
     <file source-language="en" datatype="plaintext" original="module.xlf" product-name="cbm">
-        <header/>
+        <header />
         <body>
             <trans-unit id="title">
                 <source>Content Blocks</source>
@@ -16,7 +16,8 @@
                 <source>Content Blocks</source>
             </trans-unit>
             <trans-unit id="overview.readOnly">
-                <source>Files can only be changed in the Development context. This is an overview only.</source>
+                <source>Files can only be changed in the Development context. This is an overview
+                    only.</source>
             </trans-unit>
             <trans-unit id="overview.vendor">
                 <source>Installed from vendor: changes would be lost on the next composer install.</source>
@@ -121,7 +122,8 @@
                 <source>Labels: %s</source>
             </trans-unit>
             <trans-unit id="editor.migrateFirst">
-                <source>Some labels are still defined in config.yaml. Migrate them first, then they can be edited here.</source>
+                <source>Some labels are still defined in config.yaml. Migrate them first, then they
+                    can be edited here.</source>
             </trans-unit>
             <trans-unit id="editor.key">
                 <source>Key</source>
@@ -136,7 +138,10 @@
                 <source>Custom</source>
             </trans-unit>
             <trans-unit id="editor.fieldHint">
-                <source>Field labels belong to fields in config.yaml: they can be changed, but not deleted. Descriptions are optional: leave them empty or clear them to have none. Labels of new fields are added by migrating them from config.yaml.</source>
+                <source>Field labels belong to fields in config.yaml: they can be changed, but not
+                    deleted. Descriptions are optional: leave them empty or clear them to have none.
+                    Labels of new fields are added by migrating them from config.yaml.
+                </source>
             </trans-unit>
             <trans-unit id="editor.empty">
                 <source>labels.xlf has no labels yet.</source>
@@ -155,6 +160,97 @@
             </trans-unit>
             <trans-unit id="message.labelDeleted">
                 <source>Label deleted from %s.</source>
+            </trans-unit>
+            <trans-unit id="action.create">
+                <source>Create Content Block</source>
+            </trans-unit>
+            <trans-unit id="create.heading">
+                <source>Create Content Block</source>
+            </trans-unit>
+            <trans-unit id="create.errors">
+                <source>The Content Block was not created</source>
+            </trans-unit>
+            <trans-unit id="create.contentType">
+                <source>Content type</source>
+            </trans-unit>
+            <trans-unit id="create.contentType.content-element">
+                <source>Content element</source>
+            </trans-unit>
+            <trans-unit id="create.contentType.record-type">
+                <source>Record type</source>
+            </trans-unit>
+            <trans-unit id="create.contentType.page-type">
+                <source>Page type</source>
+            </trans-unit>
+            <trans-unit id="create.vendor">
+                <source>Vendor</source>
+            </trans-unit>
+            <trans-unit id="create.name">
+                <source>Name</source>
+            </trans-unit>
+            <trans-unit id="create.nameHint">
+                <source>Lowercase words separated by &quot;-&quot;, e.g. teaser-box.</source>
+            </trans-unit>
+            <trans-unit id="create.title">
+                <source>Title</source>
+            </trans-unit>
+            <trans-unit id="create.extension">
+                <source>Extension</source>
+            </trans-unit>
+            <trans-unit id="create.group">
+                <source>Group in the new content element wizard</source>
+            </trans-unit>
+            <trans-unit id="create.typeName">
+                <source>Page type number (doktype)</source>
+            </trans-unit>
+            <trans-unit id="create.typeNameHint">
+                <source>A unique positive number, e.g. the current timestamp.</source>
+            </trans-unit>
+            <trans-unit id="create.description">
+                <source>Description</source>
+            </trans-unit>
+            <trans-unit id="create.fields">
+                <source>Fields</source>
+            </trans-unit>
+            <trans-unit id="create.fieldsHint">
+                <source>Content elements start with the header field, record types with a title
+                    field; the fields below are added after it.</source>
+            </trans-unit>
+            <trans-unit id="create.identifier">
+                <source>Identifier</source>
+            </trans-unit>
+            <trans-unit id="create.fieldType">
+                <source>Type</source>
+            </trans-unit>
+            <trans-unit id="create.label">
+                <source>Label</source>
+            </trans-unit>
+            <trans-unit id="create.fieldDescription">
+                <source>Description</source>
+            </trans-unit>
+            <trans-unit id="create.required">
+                <source>Required</source>
+            </trans-unit>
+            <trans-unit id="create.items">
+                <source>Items: one &quot;value = Label&quot; per line</source>
+            </trans-unit>
+            <trans-unit id="create.addField">
+                <source>Add field</source>
+            </trans-unit>
+            <trans-unit id="create.removeField">
+                <source>Remove</source>
+            </trans-unit>
+            <trans-unit id="create.submit">
+                <source>Create</source>
+            </trans-unit>
+            <trans-unit id="message.created">
+                <source>%s created: database updated and backend preview generated.</source>
+            </trans-unit>
+            <trans-unit id="message.createdWithIssue">
+                <source>%s was created, but updating the database or generating the preview failed:</source>
+            </trans-unit>
+            <trans-unit id="message.createReadOnly">
+                <source>Content Blocks can only be created in the Development context.</source>
             </trans-unit>
         </body>
     </file>

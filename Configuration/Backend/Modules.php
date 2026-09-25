@@ -29,6 +29,16 @@ return [
                 'target' => ContentBlockModuleController::class . '::labelsDeleteAction',
                 'methods' => ['POST'],
             ],
+            'create' => [
+                'target' => ContentBlockModuleController::class . '::createAction',
+            ],
+            'createSubmit' => [
+                'target' => ContentBlockModuleController::class . '::createSubmitAction',
+                'methods' => ['POST'],
+            ],
+            'createFinish' => [
+                'target' => ContentBlockModuleController::class . '::createFinishAction',
+            ],
             'preview' => [
                 'target' => ContentBlockModuleController::class . '::previewAction',
             ],
