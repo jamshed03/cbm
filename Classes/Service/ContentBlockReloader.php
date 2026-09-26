@@ -26,10 +26,7 @@ final class ContentBlockReloader extends ContentBlockLoader
             throw new \InvalidArgumentException('Select either a Content Block name or an extension.', 1758700005);
         }
         if ($contentBlockName !== null) {
-            if (!$registry->hasContentBlock($contentBlockName)) {
-                throw new \InvalidArgumentException('Content Block "' . $contentBlockName . '" does not exist.', 1758700003);
-            }
-            return [$registry->getContentBlock($contentBlockName)];
+            return [$this->find($registry, $contentBlockName)];
         }
         $contentBlocks = array_values(array_filter(
             $registry->getAll(),
@@ -39,6 +36,29 @@ final class ContentBlockReloader extends ContentBlockLoader
             throw new \InvalidArgumentException('Extension "' . $extension . '" contains no Content Blocks.', 1758700004);
         }
         return $contentBlocks;
+    }
+
+    /**
+     * @param string $name "vendor/name", or just the name (case-insensitive), e.g. "Hero"
+     */
+    public function find(ContentBlockRegistry $registry, string $name): LoadedContentBlock
+    {
+        if ($registry->hasContentBlock($name)) {
+            return $registry->getContentBlock($name);
+        }
+        $matches = array_values(array_filter(
+            $registry->getAll(),
+            static fn(LoadedContentBlock $contentBlock): bool => strcasecmp($contentBlock->getPackage(), $name) === 0,
+        ));
+        return match (count($matches)) {
+            1 => $matches[0],
+            0 => throw new \InvalidArgumentException('Content Block "' . $name . '" does not exist.', 1758700003),
+            default => throw new \InvalidArgumentException(sprintf(
+                '"%s" is ambiguous, use one of: %s',
+                $name,
+                implode(', ', array_map(static fn(LoadedContentBlock $contentBlock): string => $contentBlock->getName(), $matches)),
+            ), 1758700051),
+        };
     }
 
     /**

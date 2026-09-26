@@ -55,20 +55,16 @@ final class MakeModelCommand extends Command
             } elseif (is_file($path) && !$force) {
                 $io->writeln(sprintf('<comment>kept</comment>    %s (exists, use --force to overwrite)', $shown));
             } else {
-                GeneralUtility::mkdir_deep(dirname($path));
-                GeneralUtility::writeFile($path, $content);
-                $io->writeln(sprintf('<info>written</info> %s', $shown));
+                $this->write($io, $path, $content);
             }
         }
 
-        if ($generated->getNeededMappings() === []) {
+        if ($generated->mappings === []) {
             return Command::SUCCESS;
         }
         // Classes.php is PHP written by hand: it is only created, never changed.
         if (!is_file($generated->persistenceFile) && !$dryRun) {
-            GeneralUtility::mkdir_deep(dirname($generated->persistenceFile));
-            GeneralUtility::writeFile($generated->persistenceFile, $generated->renderPersistenceFile());
-            $io->writeln(sprintf('<info>written</info> %s', $this->relative($generated->persistenceFile)));
+            $this->write($io, $generated->persistenceFile, $generated->renderPersistenceFile());
             $io->note('Flush the caches so that Extbase picks up the new persistence mapping.');
             return Command::SUCCESS;
         }
@@ -76,6 +72,13 @@ final class MakeModelCommand extends Command
         $io->writeln($generated->renderMappingEntries(), OutputInterface::OUTPUT_RAW);
         $io->note('Extbase needs these entries: the table or the column names differ from its conventions.');
         return Command::SUCCESS;
+    }
+
+    private function write(SymfonyStyle $io, string $path, string $content): void
+    {
+        GeneralUtility::mkdir_deep(dirname($path));
+        GeneralUtility::writeFile($path, $content);
+        $io->writeln(sprintf('<info>written</info> %s', $this->relative($path)));
     }
 
     private function relative(string $path): string

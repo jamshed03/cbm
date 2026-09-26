@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AskoEducation\Cbm\Service\ModelGenerator;
 
+use TYPO3\CMS\Core\Utility\ArrayUtility;
+
 /**
  * The files ModelGenerator produced, and the persistence mapping Extbase needs for them.
  */
@@ -15,48 +17,38 @@ final class GeneratedModel
     public array $files = [];
 
     /**
-     * @var array<string, array<string, mixed>> Extbase persistence mapping by model class; empty where conventions fit
+     * @var array<string, array<string, mixed>> Extbase persistence mapping by model class, only where conventions don't fit
      */
     public array $mappings = [];
 
     public function __construct(
-        public readonly string $modelPath,
         public readonly string $namespace,
         public readonly string $persistenceFile,
     ) {
     }
 
     /**
-     * @return array<string, array<string, mixed>>
+     * The fully qualified name of the model class $className, e.g. "Project" or "ProjectSection".
      */
-    public function getNeededMappings(): array
+    public function modelClass(string $className): string
     {
-        return array_filter($this->mappings);
+        return $this->namespace . '\\Domain\\Model\\' . $className;
     }
 
     /**
      * The entries for Configuration/Extbase/Persistence/Classes.php.
      */
-    public function renderMappingEntries(string $indent = '    '): string
+    public function renderMappingEntries(): string
     {
-        $lines = [];
-        foreach ($this->getNeededMappings() as $class => $mapping) {
-            $lines[] = $indent . '\\' . $class . '::class => ' . $this->export($mapping, $indent) . ',';
+        $entries = '';
+        foreach ($this->mappings as $class => $mapping) {
+            $entries .= '    \\' . $class . '::class => ' . ArrayUtility::arrayExport($mapping, 1);
         }
-        return implode("\n", $lines);
+        return rtrim($entries);
     }
 
     public function renderPersistenceFile(): string
     {
         return "<?php\n\ndeclare(strict_types=1);\n\nreturn [\n" . $this->renderMappingEntries() . "\n];\n";
-    }
-
-    private function export(array $value, string $indent): string
-    {
-        $lines = [];
-        foreach ($value as $key => $item) {
-            $lines[] = $indent . '    ' . var_export($key, true) . ' => ' . (is_array($item) ? $this->export($item, $indent . '    ') : var_export($item, true)) . ',';
-        }
-        return "[\n" . implode("\n", $lines) . "\n" . $indent . ']';
     }
 }
