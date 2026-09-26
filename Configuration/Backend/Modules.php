@@ -49,6 +49,9 @@ return [
             'editFinish' => [
                 'target' => ContentBlockModuleController::class . '::editFinishAction',
             ],
+            'export' => [
+                'target' => ContentBlockModuleController::class . '::exportAction',
+            ],
             'preview' => [
                 'target' => ContentBlockModuleController::class . '::previewAction',
             ],

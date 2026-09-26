@@ -16,8 +16,7 @@
                 <source>Content Blocks</source>
             </trans-unit>
             <trans-unit id="overview.readOnly">
-                <source>Files can only be changed in the Development context. This is an overview
-                    only.</source>
+                <source>Files cannot be changed in this context (see the extension setting &quot;writableContexts&quot;). This is an overview only; exports are possible.</source>
             </trans-unit>
             <trans-unit id="overview.vendor">
                 <source>Installed from vendor: changes would be lost on the next composer install.</source>
@@ -250,7 +249,7 @@
                 <source>%s was created, but updating the database or generating the preview failed:</source>
             </trans-unit>
             <trans-unit id="message.createReadOnly">
-                <source>Content Blocks can only be created in the Development context.</source>
+                <source>Content Blocks cannot be created in this context (see the extension setting &quot;writableContexts&quot;).</source>
             </trans-unit>
             <trans-unit id="create.options">
                 <source>Options (from the Content Blocks schema; empty = default)</source>
@@ -287,6 +286,15 @@
             </trans-unit>
             <trans-unit id="message.savedWithIssue">
                 <source>%s was saved, but updating the database or the preview failed:</source>
+            </trans-unit>
+            <trans-unit id="action.export">
+                <source>Export</source>
+            </trans-unit>
+            <trans-unit id="action.exportZip">
+                <source>Export the complete Content Block as ZIP</source>
+            </trans-unit>
+            <trans-unit id="action.exportFile">
+                <source>Export %s</source>
             </trans-unit>
         </body>
     </file>

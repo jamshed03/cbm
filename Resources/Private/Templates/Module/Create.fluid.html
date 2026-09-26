@@ -11,7 +11,7 @@
         </f:if>
     </h1>
 
-    <f:if condition="!{isDevelopment}">
+    <f:if condition="!{canWrite}">
         <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::INFO')}">
             <p><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:message.createReadOnly"/></p>
         </f:be.infobox>
@@ -121,7 +121,7 @@
                 <label class="form-check-label" for="cbm-confirmed"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:edit.confirm"/></label>
             </div>
         </f:if>
-        <f:if condition="{isDevelopment}">
+        <f:if condition="{canWrite}">
             <button type="submit" class="btn btn-primary">
                 <f:if condition="{editing}">
                     <f:then><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:edit.submit"/></f:then>

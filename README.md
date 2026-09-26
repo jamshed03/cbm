@@ -81,7 +81,7 @@ preview. Per Content Block:
   migration (the same plan as `cbm:labels:migrate --dry-run`). `labels.xlf` is always written by Content Blocks'
   `LanguageFileGenerator`, and the translation cache is flushed afterwards. Translations (e.g. `de.labels.xlf`)
   are not edited yet.
-- **Create Content Block** (Development context only): content element, record type or page type with vendor, name,
+- **Create Content Block** (only where files may be written, see below): content element, record type or page type with vendor, name,
   title and extension (plus group and description for content elements, the doktype for page types) and a list of
   fields (identifier, type, label, description, required; items for Select and Radio; and the options of the field
   type, e.g. enableRichtext, rows and cols of a Textarea – read from the JSON schema Content Blocks lints against, so
@@ -90,7 +90,7 @@ preview. Per Content Block:
   `content-blocks:create` does (Content Blocks' `ConfigBuilder` and `ContentBlockBuilder`), with its labels only in
   `labels.xlf`. In a second request, once TCA knows the new Content Block, its table or columns are added (only
   those of its table, never changes or drops elsewhere) and the backend preview is generated.
-- **Edit** (Development context only): the create form, filled with the Content Block. Title, description and group,
+- **Edit** (only where files may be written, see below): the create form, filled with the Content Block. Title, description and group,
   and the fields: identifier, type, label, description, required, items and options. Labels go into `labels.xlf`,
   the rest into `config.yaml` (written with 4 spaces; comments are not kept). Of each field only the keys the form
   sets are replaced, all others are kept; fields the form cannot show (Collections, Relations, existing fields, ...)
@@ -99,5 +99,14 @@ preview. Per Content Block:
   Labels still in `config.yaml` have to be migrated first.
 - **Generate preview** shows the same plan as `cbm:preview:generate --dry-run` and writes it on "Apply".
 
-Files are only written in the Development context, and never for extensions installed into `vendor/` (the next
-`composer install` would overwrite them); otherwise the module is an overview only.
+Files are only written in the contexts of the extension setting `writableContexts` (default `Development`; a context
+also covers its sub-contexts), and never for extensions installed into `vendor/` (the next `composer install` would
+overwrite them). To let editors try out changes on staging, set e.g. `Development, Production/Staging` there, in the
+backend (Admin Tools > Settings > Extension Configuration) or in `config/system/additional.php`. The `cbm:*` commands are
+not restricted by it.
+
+**Export** (every context), to carry changes made on staging into the repository before the next deployment
+overwrites them: in the list, "Export" downloads the complete Content Block as ZIP (e.g. `hero.zip` with
+`hero/config.yaml`, `hero/language/…`, `hero/templates/…`, `hero/assets/…`). The edit page offers its `config.yaml`,
+the labels page its language files (`labels.xlf` and translations such as `de.labels.xlf`) in the doc header, next to
+the reload button (`hero-config.yaml`, `hero-labels.xlf`, ...).

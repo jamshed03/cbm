@@ -3,7 +3,7 @@
 
     <f:section name="Content">
         <h1><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:overview.heading" /></h1>
-        <f:if condition="{isDevelopment}">
+        <f:if condition="{canWrite}">
             <p>
                 <a class="btn btn-primary" href="{f:be.uri(route: 'content_cbm.create')}">
                     <core:icon identifier="actions-plus" />
@@ -11,14 +11,14 @@
                 </a>
             </p>
         </f:if>
-        <f:if condition="!{isDevelopment}">
+        <f:if condition="!{canWrite}">
             <f:be.infobox state="{f:constant(name: 'TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::INFO')}">
                 <p><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:overview.readOnly" /></p>
             </f:be.infobox>
         </f:if>
         <f:for each="{groups}" as="group">
             <h2>EXT:{group.extension}</h2>
-            <f:if condition="{isDevelopment} && !{group.writable}">
+            <f:if condition="{canWrite} && !{group.writable}">
                 <p class="text-body-secondary"><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:overview.vendor" /></p>
             </f:if>
             <div class="table-fit">
@@ -50,19 +50,20 @@
                                 <td><f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:status.{contentBlock.previewStatus}" /></td>
                                 <td class="col-control">
                                     <div class="btn-group">
-                                        <f:if condition="{isDevelopment} && {group.writable} && {contentBlock.type} != 'file-type'">
-                                        <a class="btn btn-default btn-sm" href="{f:be.uri(route: 'content_cbm.edit', parameters: {contentBlock: contentBlock.name})}">
-                                            <core:icon identifier="actions-open"/> <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.edit"/>
+                                        <f:if condition="{group.writable} && {contentBlock.type} != 'file-type'">
+                                            <a class="btn btn-default btn-sm" href="{f:be.uri(route: 'content_cbm.edit', parameters: {contentBlock: contentBlock.name})}">
+                                                <core:icon identifier="actions-open"/> <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.edit"/>
+                                            </a>
+                                        </f:if>
+                                        <a class="btn btn-default btn-sm" href="{f:be.uri(route: 'content_cbm.labels', parameters: {contentBlock: contentBlock.name})}">
+                                            <core:icon identifier="actions-translate"/> <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.labels"/>
                                         </a>
-                                    </f:if>
-                                    <a class="btn btn-default btn-sm" href="{f:be.uri(route: 'content_cbm.labels', parameters: {contentBlock: contentBlock.name})}">
-                                            <core:icon identifier="actions-translate" />
-                                            <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.labels" />
+                                        <a class="btn btn-default btn-sm" href="{f:be.uri(route: 'content_cbm.export', parameters: {contentBlock: contentBlock.name})}" title="{f:translate(key: 'LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.exportZip')}">
+                                            <core:icon identifier="actions-download"/> <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.export"/>
                                         </a>
                                         <f:if condition="{contentBlock.previewStatus} != 'unsupported'">
                                             <a class="btn btn-default btn-sm" href="{f:be.uri(route: 'content_cbm.preview', parameters: {contentBlock: contentBlock.name})}">
-                                                <core:icon identifier="actions-eye" />
-                                                <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.preview" />
+                                                <core:icon identifier="actions-eye"/> <f:translate key="LLL:EXT:cbm/Resources/Private/Language/module.xlf:action.preview"/>
                                             </a>
                                         </f:if>
                                     </div>

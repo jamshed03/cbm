@@ -1,0 +1,2 @@
+# cat=basic; type=string; label=Contexts in which the backend module may write files (comma-separated, e.g. "Development, Production/Staging"). A context also covers its sub-contexts ("Development" covers "Development/Local"). Exports are always possible.
+writableContexts = Development

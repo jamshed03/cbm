@@ -12,32 +12,39 @@ use AskoEducation\Cbm\Service\Creation\FieldDefinitions;
 use AskoEducation\Cbm\Service\Creation\NewContentBlock;
 use AskoEducation\Cbm\Service\Creation\NewField;
 use AskoEducation\Cbm\Service\Editing\ContentBlockEditor;
+use AskoEducation\Cbm\Service\Export\ContentBlockFiles;
 use AskoEducation\Cbm\Service\LabelEditor\LabelEditorService;
 use AskoEducation\Cbm\Service\LabelMigration\LabelLine;
 use AskoEducation\Cbm\Service\LabelMigration\LabelMigrationService;
 use AskoEducation\Cbm\Service\LabelMigration\MigrationOptions;
 use AskoEducation\Cbm\Service\LabelMigration\Prefer;
 use AskoEducation\Cbm\Service\LanguageFile\LanguageFileService;
+use AskoEducation\Cbm\Service\WriteAccess;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Attribute\AsController;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
+use TYPO3\CMS\Backend\Template\Components\ButtonBar;
+use TYPO3\CMS\Backend\Template\Components\ComponentFactory;
+use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\ContentBlocks\Loader\LoadedContentBlock;
 use TYPO3\CMS\ContentBlocks\Registry\ContentBlockRegistry;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Http\RedirectResponse;
+use TYPO3\CMS\Core\Http\Response;
+use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Imaging\IconSize;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
-use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 
 /**
  * Backend module: lists all Content Blocks with the state of their labels and backend preview, edits their labels
  * and runs the label migration and preview generation per Content Block – the same plan()/apply() as the cbm:*
  * commands.
- * Files are only written in the Development context and never in packages installed into vendor/.
+ * Files are only written where WriteAccess allows it; exports are always possible.
  */
 #[AsController]
 final readonly class ContentBlockModuleController
@@ -46,7 +53,10 @@ final readonly class ContentBlockModuleController
         private ModuleTemplateFactory $moduleTemplateFactory,
         private UriBuilder $uriBuilder,
         private FlashMessageService $flashMessageService,
-        private PackageManager $packageManager,
+        private WriteAccess $writeAccess,
+        private ContentBlockFiles $contentBlockFiles,
+        private ComponentFactory $componentFactory,
+        private IconFactory $iconFactory,
         private ContentBlockReloader $contentBlockReloader,
         private LabelMigrationService $labelMigrationService,
         private LabelEditorService $labelEditorService,
@@ -75,7 +85,7 @@ final readonly class ContentBlockModuleController
             }
             $groups[] = [
                 'extension' => $extension,
-                'writable' => $this->isWritable((string) $extension),
+                'writable' => $this->writeAccess->isExtensionWritable((string) $extension),
                 'contentBlocks' => array_map(
                     fn(LoadedContentBlock $contentBlock): array => [
                         'name' => $contentBlock->getName(),
@@ -90,7 +100,7 @@ final readonly class ContentBlockModuleController
         return $this->moduleTemplateFactory->create($request)
             ->assignMultiple([
                 'groups' => $groups,
-                'isDevelopment' => Environment::getContext()->isDevelopment(),
+                'canWrite' => $this->writeAccess->isContextAllowed(),
             ])
             ->renderResponse('Module/Overview');
     }
@@ -100,7 +110,12 @@ final readonly class ContentBlockModuleController
         $contentBlock = (string) ($request->getQueryParams()['contentBlock'] ?? '');
         $prefer = Prefer::tryFrom((string) ($request->getQueryParams()['prefer'] ?? '')) ?? Prefer::Xlf;
         $plan = $this->labelMigrationService->plan($contentBlock, null, new MigrationOptions(prefer: $prefer))[0];
-        return $this->moduleTemplateFactory->create($request)
+        $registry = $this->contentBlockReloader->loadRegistry();
+        $view = $this->moduleTemplateFactory->create($request);
+        if ($registry->hasContentBlock($contentBlock)) {
+            $this->addExportButtons($view, $registry->getContentBlock($contentBlock), $this->contentBlockFiles->getLanguageFiles($registry->getContentBlock($contentBlock)));
+        }
+        return $view
             ->assignMultiple([
                 'plan' => $plan,
                 'hasChanges' => $plan->hasChanges(),
@@ -109,7 +124,7 @@ final readonly class ContentBlockModuleController
                 'removed' => array_map($this->describeLabelLine(...), $plan->removed),
                 'skipped' => array_map($this->describeLabelLine(...), $plan->skipped),
                 'prefer' => $prefer->value,
-                'writable' => $this->isWritableContentBlock($contentBlock),
+                'writable' => $this->isWritableContentBlock($contentBlock, $registry),
             ])
             ->renderResponse('Module/Labels');
     }
@@ -160,7 +175,7 @@ final readonly class ContentBlockModuleController
 
     public function createSubmitAction(ServerRequestInterface $request): ResponseInterface
     {
-        if (!Environment::getContext()->isDevelopment()) {
+        if (!$this->writeAccess->isContextAllowed()) {
             return $this->redirectWithMessage($this->translate('message.createReadOnly', ''), ContextualFeedbackSeverity::ERROR);
         }
         $new = NewContentBlock::fromFormData((array) $request->getParsedBody());
@@ -267,6 +282,42 @@ final readonly class ContentBlockModuleController
             : $this->redirectWithMessage($this->translate('message.savedCustomPreview', $contentBlock), ContextualFeedbackSeverity::INFO, $contentBlock);
     }
 
+    /**
+     * Downloads a Content Block as ZIP, or with "file" one of its config.yaml and language files, e.g. to carry changes
+     * made on staging into the repository. Possible in every context: it only reads.
+     */
+    public function exportAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $contentBlockName = (string) ($request->getQueryParams()['contentBlock'] ?? '');
+        $file = (string) ($request->getQueryParams()['file'] ?? '');
+        $registry = $this->contentBlockReloader->loadRegistry();
+        if (!$registry->hasContentBlock($contentBlockName)) {
+            return $this->redirectWithMessage(sprintf('Content Block "%s" does not exist.', $contentBlockName), ContextualFeedbackSeverity::ERROR);
+        }
+        $contentBlock = $registry->getContentBlock($contentBlockName);
+        try {
+            if ($file === '') {
+                return $this->download($this->contentBlockFiles->createZip($contentBlock), $this->contentBlockFiles->getZipName($contentBlock), 'application/zip');
+            }
+            return $this->download(
+                $this->contentBlockFiles->getContent($contentBlock, $file),
+                $this->contentBlockFiles->getDownloadName($contentBlock, $file),
+                str_ends_with($file, '.xlf') ? 'application/xml; charset=utf-8' : 'application/yaml; charset=utf-8',
+            );
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return $this->redirectWithMessage($e->getMessage(), ContextualFeedbackSeverity::ERROR);
+        }
+    }
+
+    private function download(string $content, string $fileName, string $contentType): ResponseInterface
+    {
+        $response = (new Response())
+            ->withHeader('Content-Type', $contentType)
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $fileName . '"');
+        $response->getBody()->write($content);
+        return $response;
+    }
+
     public function previewAction(ServerRequestInterface $request): ResponseInterface
     {
         $contentBlock = (string) ($request->getQueryParams()['contentBlock'] ?? '');
@@ -310,7 +361,13 @@ final readonly class ContentBlockModuleController
         string $editing = '',
         array $warnings = [],
     ): ResponseInterface {
-        return $this->moduleTemplateFactory->create($request)
+        $view = $this->moduleTemplateFactory->create($request);
+        if ($editing !== '' && $registry->hasContentBlock($editing)) {
+            $contentBlock = $registry->getContentBlock($editing);
+            $files = array_diff($this->contentBlockFiles->getExportableFiles($contentBlock), $this->contentBlockFiles->getLanguageFiles($contentBlock));
+            $this->addExportButtons($view, $contentBlock, array_values($files));
+        }
+        return $view
             ->assignMultiple([
                 'new' => $new,
                 'errors' => $errors,
@@ -322,7 +379,7 @@ final readonly class ContentBlockModuleController
                 'typesWithItems' => implode(',', NewField::TYPES_WITH_ITEMS),
                 'groups' => $this->contentBlockCreator->getGroups($registry),
                 'extensions' => $extensions,
-                'isDevelopment' => Environment::getContext()->isDevelopment(),
+                'canWrite' => $this->writeAccess->isContextAllowed(),
             ])
             ->renderResponse('Module/Create');
     }
@@ -332,7 +389,27 @@ final readonly class ContentBlockModuleController
      */
     private function getWritableExtensions(): array
     {
-        return array_values(array_filter($this->contentBlockCreator->getExtensions(), $this->isWritable(...)));
+        if (!$this->writeAccess->isContextAllowed()) {
+            return [];
+        }
+        return array_values(array_filter($this->contentBlockCreator->getExtensions(), $this->writeAccess->isExtensionWritable(...)));
+    }
+
+    /**
+     * Export buttons in the doc header, next to the reload button, for $files of $contentBlock.
+     *
+     * @param list<string> $files see ContentBlockFiles
+     */
+    private function addExportButtons(ModuleTemplate $view, LoadedContentBlock $contentBlock, array $files): void
+    {
+        foreach ($files as $file) {
+            $button = $this->componentFactory->createLinkButton()
+                ->setHref((string) $this->uriBuilder->buildUriFromRoute('content_cbm.export', ['contentBlock' => $contentBlock->getName(), 'file' => $file]))
+                ->setTitle($this->translate('action.exportFile', basename($file)))
+                ->setShowLabelText(true)
+                ->setIcon($this->iconFactory->getIcon('actions-download', IconSize::SMALL));
+            $view->getDocHeaderComponent()->getButtonBar()->addButton($button, ButtonBar::BUTTON_POSITION_RIGHT);
+        }
     }
 
     /**
@@ -363,22 +440,11 @@ final readonly class ContentBlockModuleController
         return ['line' => $labelLine->lineNumber(), 'key' => $labelLine->key, 'value' => $labelLine->value];
     }
 
-    private function isWritableContentBlock(string $contentBlock): bool
+    private function isWritableContentBlock(string $contentBlock, ?ContentBlockRegistry $registry = null): bool
     {
-        $registry = $this->contentBlockReloader->loadRegistry();
+        $registry ??= $this->contentBlockReloader->loadRegistry();
         return $registry->hasContentBlock($contentBlock)
-            && $this->isWritable($registry->getContentBlock($contentBlock)->getHostExtension());
-    }
-
-    /**
-     * Files are only written in the Development context, and not into packages installed into vendor/,
-     * which the next composer install would overwrite.
-     */
-    private function isWritable(string $extension): bool
-    {
-        $packagePath = (string) realpath($this->packageManager->getPackage($extension)->getPackagePath());
-        return Environment::getContext()->isDevelopment()
-            && !str_starts_with($packagePath, Environment::getProjectPath() . '/vendor/');
+            && $this->writeAccess->isExtensionWritable($registry->getContentBlock($contentBlock)->getHostExtension());
     }
 
     private function relativePath(PreviewPlan $plan): string
