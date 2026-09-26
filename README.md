@@ -69,6 +69,23 @@ On top of that, cbm:
   ("Preview for Content Block: vendor/name"); hand-written ones are kept unless `--force` is given,
 - skips content types without a backend preview (record types, file types).
 
+## Generate Extbase models
+
+```bash
+vendor/bin/typo3 cbm:make:model project --dry-run   # print what would be generated
+vendor/bin/typo3 cbm:make:model portfolio/project   # "vendor/name" or just the name (case-insensitive)
+vendor/bin/typo3 cbm:make:model Hero --repository   # also an (empty) HeroRepository
+```
+
+Generates `Classes/Domain/Model/<Name>.php` in the extension of the Content Block (namespace from its composer.json),
+with typed properties, getters and setters for the fields as Content Blocks compiles them, and one model per
+Collection (e.g. `ProjectSection` for `sections`). Files, Categories and Collections become `ObjectStorage`s,
+Relations to other Content Blocks of the extension their models, other Relations keep the uid(s).
+
+Where table or columns differ from Extbase's conventions (prefixed columns, `tt_content`, Collection tables), Extbase
+needs entries in `Configuration/Extbase/Persistence/Classes.php`: the file is created if it does not exist, otherwise
+the entries are printed to be added by hand. Existing classes are kept unless `--force` is given.
+
 ## Backend module
 
 **Content > Content Blocks** (admins only) lists all Content Blocks by extension, with how many of their language keys
